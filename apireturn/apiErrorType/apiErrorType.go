@@ -1,0 +1,6 @@
+package apiErrorType
+
+const (
+	API_CONTEXT_ERROR         = "API_CONTEXT_ERROR"
+	ISSUER_TO_USER_CONVERSION = "ISSUER_TO_USER_CONVERSION"
+)
