@@ -27,7 +27,7 @@ var DB *sqlx.DB
 
 func StartDB() error {
 	//connect to db with tls / ssl if not dev env
-	if !global.EnvVars.DBTLS {
+	if global.EnvVars.DBTLS {
 		tlsConf, err := tls.CreateTLSConf()
 		if err != nil {
 			return err
