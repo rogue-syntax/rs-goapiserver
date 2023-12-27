@@ -12,16 +12,16 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/rogue-syntax/rs-goapiserver/apicontext"
+	"github.com/rogue-syntax/rs-goapiserver/apierrors"
+	"github.com/rogue-syntax/rs-goapiserver/apireturn"
+	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
+	"github.com/rogue-syntax/rs-goapiserver/authutil"
+	"github.com/rogue-syntax/rs-goapiserver/database"
+	"github.com/rogue-syntax/rs-goapiserver/entities/user"
+	"github.com/rogue-syntax/rs-goapiserver/global"
+	"github.com/rogue-syntax/rs-goapiserver/routeroles"
 	"golang.org/x/crypto/bcrypt"
-	"rs-apiserver.com/apicontext"
-	"rs-apiserver.com/apierrors"
-	"rs-apiserver.com/apireturn"
-	"rs-apiserver.com/apireturn/apierrorkeys"
-	"rs-apiserver.com/authutil"
-	"rs-apiserver.com/database"
-	"rs-apiserver.com/entities/user"
-	"rs-apiserver.com/global"
-	"rs-apiserver.com/routeroles"
 )
 
 const (

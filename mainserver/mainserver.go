@@ -7,15 +7,15 @@ import (
 	"net/http"
 	"time"
 
-	"rs-apiserver.com/apierrors"
+	"github.com/rogue-syntax/rs-goapiserver/apierrors"
 
-	"rs-apiserver.com/apireturn/apierrorkeys"
-	"rs-apiserver.com/database"
+	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
+	"github.com/rogue-syntax/rs-goapiserver/database"
 
 	"runtime/debug"
 
-	"rs-apiserver.com/global"
-	"rs-apiserver.com/global/httpconfig"
+	"github.com/rogue-syntax/rs-goapiserver/global"
+	"github.com/rogue-syntax/rs-goapiserver/global/httpconfig"
 )
 
 // handler is a typical HTTP request-response handler in Go; details later

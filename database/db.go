@@ -10,8 +10,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/rogue-syntax/goqb-rs"
-	"rs-apiserver.com/global"
-	"rs-apiserver.com/tls"
+	"github.com/rogue-syntax/rs-goapiserver/global"
+	"github.com/rogue-syntax/rs-goapiserver/tls"
 )
 
 // query struct for simple where conditions
@@ -27,7 +27,7 @@ var DB *sqlx.DB
 
 func StartDB() error {
 	//connect to db with tls / ssl if not dev env
-	if !global.EnvVars.DevEnv {
+	if !global.EnvVars.DBTLS {
 		tlsConf, err := tls.CreateTLSConf()
 		if err != nil {
 			return err

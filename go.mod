@@ -1,4 +1,4 @@
-module rs-apiserver.com
+module github.com/rogue-syntax/rs-goapiserver
 
 go 1.20
 

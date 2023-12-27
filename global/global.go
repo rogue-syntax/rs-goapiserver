@@ -18,6 +18,7 @@ type EnvVarsType struct {
 	DbserverUser         string
 	DbserverPort         string
 	DbserverDefaultDB    string
+	DBTLS                bool
 	SSLCliKey            string
 	SSLCliCert           string
 	SSLCaCert            string

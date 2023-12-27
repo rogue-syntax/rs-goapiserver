@@ -1,14 +1,14 @@
 package tls
 
 import (
-	//"rs-apiserver.com/global"
+	//"github.com/rogue-syntax/rs-goapiserver/global"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"io/ioutil"
 	"net/http"
 
-	"rs-apiserver.com/global"
+	"github.com/rogue-syntax/rs-goapiserver/global"
 )
 
 type HttpClientTY struct {

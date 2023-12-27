@@ -1,11 +1,11 @@
 package approutes
 
 import (
-	"rs-apiserver.com/authentication"
-	"rs-apiserver.com/mail"
-	"rs-apiserver.com/middleware"
-	"rs-apiserver.com/signup"
-	"rs-apiserver.com/websockets"
+	"github.com/rogue-syntax/rs-goapiserver/authentication"
+	"github.com/rogue-syntax/rs-goapiserver/mail"
+	"github.com/rogue-syntax/rs-goapiserver/middleware"
+	"github.com/rogue-syntax/rs-goapiserver/signup"
+	"github.com/rogue-syntax/rs-goapiserver/websockets"
 )
 
 func SetAppRoutes() {

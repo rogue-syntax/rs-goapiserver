@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"rs-apiserver.com/apireturn/apierrorkeys"
-	"rs-apiserver.com/entities/user"
-	"rs-apiserver.com/zerologger"
+	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
+	"github.com/rogue-syntax/rs-goapiserver/entities/user"
+	"github.com/rogue-syntax/rs-goapiserver/zerologger"
 )
 
 const (
