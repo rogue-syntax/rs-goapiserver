@@ -9,15 +9,15 @@ import (
 	"time"
 	"unicode"
 
-	"rs-apiserver.com/apierrors"
-	"rs-apiserver.com/apireturn"
+	"github.com/rogue-syntax/rs-goapiserver/apierrors"
+	"github.com/rogue-syntax/rs-goapiserver/apireturn"
 
-	"rs-apiserver.com/apireturn/apierrorkeys"
-	"rs-apiserver.com/authentication"
-	"rs-apiserver.com/authutil"
-	"rs-apiserver.com/database"
-	"rs-apiserver.com/global"
-	"rs-apiserver.com/mail"
+	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
+	"github.com/rogue-syntax/rs-goapiserver/authentication"
+	"github.com/rogue-syntax/rs-goapiserver/authutil"
+	"github.com/rogue-syntax/rs-goapiserver/database"
+	"github.com/rogue-syntax/rs-goapiserver/global"
+	"github.com/rogue-syntax/rs-goapiserver/mail"
 	//"github.com/Jeffail/gabs/v2"
 )
 

@@ -7,11 +7,11 @@ import (
 	"os"
 	"strings"
 
-	"rs-apiserver.com/authutil"
-	"rs-apiserver.com/middleware"
-	"rs-apiserver.com/routeroles"
+	"github.com/rogue-syntax/rs-goapiserver/authutil"
+	"github.com/rogue-syntax/rs-goapiserver/middleware"
+	"github.com/rogue-syntax/rs-goapiserver/routeroles"
 
-	"rs-apiserver.com/signup"
+	"github.com/rogue-syntax/rs-goapiserver/signup"
 )
 
 func SetAdminRoutes() {

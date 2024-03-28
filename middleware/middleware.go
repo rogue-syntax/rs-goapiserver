@@ -6,10 +6,10 @@ import (
 	"net/http"
 
 	"github.com/pkg/errors"
-	"rs-apiserver.com/apicontext"
-	"rs-apiserver.com/apierrors"
+	"github.com/rogue-syntax/rs-goapiserver/apicontext"
+	"github.com/rogue-syntax/rs-goapiserver/apierrors"
 
-	"rs-apiserver.com/authentication"
+	"github.com/rogue-syntax/rs-goapiserver/authentication"
 )
 
 // A Middleware wrapper for HTTP / Net package

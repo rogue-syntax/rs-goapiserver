@@ -7,7 +7,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/pkg/errors"
-	"rs-apiserver.com/global"
+	"github.com/rogue-syntax/rs-goapiserver/global"
 )
 
 var minioClient *minio.Client
@@ -27,12 +27,12 @@ func IntiMinioClient() (*minio.Client, error) {
 func StoreFileToS3(data []byte, bucketKey string, fileKey string) error {
 
 	exists, err := CheckS3BucketExists(bucketKey)
-	if err != nil{
-		return  err
+	if err != nil {
+		return err
 	}
 
-	if( !exists ){
-		err := Makes3Bucket( bucketKey )
+	if !exists {
+		err := Makes3Bucket(bucketKey)
 		if err != nil {
 			return err
 		}
@@ -51,12 +51,12 @@ func GetFileFromS3(bucketKey string, fileKey string) (*[]byte, error) {
 	var byteArray []byte
 
 	exists, err := CheckS3BucketExists(bucketKey)
-	if err != nil{
+	if err != nil {
 		return &byteArray, err
 	}
 
-	if( !exists ){
-		err := Makes3Bucket( bucketKey )
+	if !exists {
+		err := Makes3Bucket(bucketKey)
 		if err != nil {
 			return &byteArray, err
 		}

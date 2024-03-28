@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	"rs-apiserver.com/apicontext"
-	"rs-apiserver.com/apierrors"
-	"rs-apiserver.com/apireturn/apierrorkeys"
-	"rs-apiserver.com/authentication"
-	"rs-apiserver.com/entities/user"
+	"github.com/rogue-syntax/rs-goapiserver/apicontext"
+	"github.com/rogue-syntax/rs-goapiserver/apierrors"
+	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
+	"github.com/rogue-syntax/rs-goapiserver/authentication"
+	"github.com/rogue-syntax/rs-goapiserver/entities/user"
 
 	"github.com/gorilla/websocket"
 )

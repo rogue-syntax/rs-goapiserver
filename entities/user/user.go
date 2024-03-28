@@ -1,7 +1,7 @@
 package user
 
 import (
-	"rs-apiserver.com/database"
+	"github.com/rogue-syntax/rs-goapiserver/database"
 )
 
 type UserInternal struct {

@@ -3,8 +3,8 @@ package apierrors
 import (
 	"net/http"
 
-	"rs-apiserver.com/apireturn"
-	"rs-apiserver.com/zerologger"
+	"github.com/rogue-syntax/rs-goapiserver/apireturn"
+	"github.com/rogue-syntax/rs-goapiserver/zerologger"
 )
 
 type ErrorWrapper struct {
