@@ -10,8 +10,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/rogue-syntax/goqb-rs"
-	"github.com/rogue-syntax/rs-goapiserver/global"
-	"github.com/rogue-syntax/rs-goapiserver/tls"
+	"rs-apiserver.com/global"
+	"rs-apiserver.com/tls"
 )
 
 // query struct for simple where conditions

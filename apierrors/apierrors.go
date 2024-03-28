@@ -3,8 +3,8 @@ package apierrors
 import (
 	"net/http"
 
-	"github.com/rogue-syntax/rs-goapiserver/apireturn"
-	"github.com/rogue-syntax/rs-goapiserver/zerologger"
+	"rs-apiserver.com/apireturn"
+	"rs-apiserver.com/zerologger"
 )
 
 type ErrorWrapper struct {
@@ -73,7 +73,7 @@ reqError:ReqError is:
 
 type ReturnError struct {
 	Msg  string
-	Data *interface{}
+	Data interface{}
 	W    *http.ResponseWriter
 }
 

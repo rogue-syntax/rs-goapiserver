@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
-	"github.com/rogue-syntax/rs-goapiserver/entities/user"
+	"rs-apiserver.com/apireturn/apierrorkeys"
+	"rs-apiserver.com/entities/user"
 )
 
 type devGenMsgType string

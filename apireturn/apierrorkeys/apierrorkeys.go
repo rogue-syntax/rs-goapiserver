@@ -37,6 +37,10 @@ const (
 	S3WriteError        = "S3_WRITE_ERROR"
 	WebSocketError      = "WEBSOCKET_ERROR"
 
+	SignupError = "SIGNUP_ERROR"
 	//signuo
 	EmailTaken = "EMAIL_TAKEN"
+
+	//data
+	DataConversionError = "DATA_CONVERSION_ERROR"
 )

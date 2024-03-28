@@ -6,10 +6,10 @@ import (
 	"net/http"
 
 	"github.com/pkg/errors"
-	"github.com/rogue-syntax/rs-goapiserver/apicontext"
-	"github.com/rogue-syntax/rs-goapiserver/apierrors"
+	"rs-apiserver.com/apicontext"
+	"rs-apiserver.com/apierrors"
 
-	"github.com/rogue-syntax/rs-goapiserver/authentication"
+	"rs-apiserver.com/authentication"
 )
 
 // A Middleware wrapper for HTTP / Net package
@@ -145,6 +145,7 @@ func (ExampleMiddlewareTwoType) ProcessRequest(ctx context.Context, routeString 
 	return ctx, nil
 }
 
+// //////////////////
 // BLANK MIDDLEWARE
 type BlankMWType struct {
 }
@@ -160,8 +161,10 @@ func (BlankMWType) ProcessRequest(ctx context.Context, routeString string, w htt
 	return ctx, err
 }
 
+////////////////
 //APP MIDDLEWARE
 
+// //////////////////////
 // REQUEST VERIFICATION
 type RequestVerifType struct {
 }
@@ -185,7 +188,8 @@ func (RequestVerifType) ProcessRequest(ctx context.Context, routeString string, 
 	}
 */
 
-// REQUEST VERIFICATION
+// /////////////////////
+// WEBHOOK MW
 type WebhookMWType struct {
 }
 
@@ -202,6 +206,7 @@ func (WebhookMWType) ProcessRequest(ctx context.Context, routeString string, w h
 	return ctx, nil
 }
 
+// //////////////////////////////////
 // ROLE BASED REQUEST VERIFICATION
 type RoleBasedRequestVerifType struct {
 }

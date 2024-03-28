@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/rogue-syntax/rs-goapiserver/apicontext"
-	"github.com/rogue-syntax/rs-goapiserver/apireturn"
-	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
+	"rs-apiserver.com/apicontext"
+	"rs-apiserver.com/apireturn"
+	"rs-apiserver.com/apireturn/apierrorkeys"
 )
 
 type intSlice = []int

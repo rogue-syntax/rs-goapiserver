@@ -7,16 +7,17 @@ import (
 	"os"
 	"strings"
 
-	"github.com/rogue-syntax/rs-goapiserver/authutil"
-	"github.com/rogue-syntax/rs-goapiserver/middleware"
-	"github.com/rogue-syntax/rs-goapiserver/routeroles"
+	"rs-apiserver.com/authutil"
+	"rs-apiserver.com/middleware"
+	"rs-apiserver.com/routeroles"
 
-	"github.com/rogue-syntax/rs-goapiserver/signup"
+	"rs-apiserver.com/signup"
 )
 
 func SetAdminRoutes() {
 
-	middleware.RouteHandler("/v1/test/genPW", func(w http.ResponseWriter, r *http.Request, ctx context.Context) {
+	middleware.RouteHandler("/v1/test/gen-pw", func(w http.ResponseWriter, r *http.Request, ctx context.Context) {
+
 		pwStr := r.FormValue("pw")
 		pwHash, _ := authutil.GeneratePW(pwStr)
 		fmt.Fprint(w, pwHash)

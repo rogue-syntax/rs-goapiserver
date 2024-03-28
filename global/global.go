@@ -12,6 +12,9 @@ const (
 )
 
 type EnvVarsType struct {
+	AppRootDir           string
+	PublicRootDir        string
+	ServiceName          string
 	Apiserver            string
 	Dbserver             string
 	DbserverPW           string
@@ -29,6 +32,7 @@ type EnvVarsType struct {
 	SMTPSupportUserName  string
 	SMTPSupportUserPW    string
 	SMTPServiceAPIKey    string
+	SMTPServiceDomain    string
 	SMSTestPhone         string
 	TwilTestToken        string
 	TwilTestAcct         string

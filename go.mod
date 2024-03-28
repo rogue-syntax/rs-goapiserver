@@ -1,4 +1,4 @@
-module github.com/rogue-syntax/rs-goapiserver
+module rs-apiserver.com
 
 go 1.20
 
@@ -11,7 +11,6 @@ require github.com/google/uuid v1.3.0 // indirect
 
 require (
 	github.com/gorilla/websocket v1.5.0
-
 	github.com/rogue-syntax/goqb-rs v0.0.0-20230223010122-100b623c0bd5
 	github.com/rogue-syntax/rs_zerolog v1.0.0
 
@@ -19,6 +18,7 @@ require (
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/go-chi/chi/v5 v5.0.8 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
@@ -39,6 +39,8 @@ require (
 )
 
 require (
+	github.com/jmoiron/sqlx v1.3.5
+	github.com/mailgun/mailgun-go/v4 v4.12.0
 	github.com/minio/minio-go/v7 v7.0.61
 	github.com/pkg/errors v0.9.1
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1

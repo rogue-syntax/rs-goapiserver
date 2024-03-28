@@ -9,15 +9,15 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/rogue-syntax/rs-goapiserver/apierrors"
-	"github.com/rogue-syntax/rs-goapiserver/apireturn"
+	"rs-apiserver.com/apierrors"
+	"rs-apiserver.com/apireturn"
 
-	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
-	"github.com/rogue-syntax/rs-goapiserver/authentication"
-	"github.com/rogue-syntax/rs-goapiserver/authutil"
-	"github.com/rogue-syntax/rs-goapiserver/database"
-	"github.com/rogue-syntax/rs-goapiserver/global"
-	"github.com/rogue-syntax/rs-goapiserver/mail"
+	"rs-apiserver.com/apireturn/apierrorkeys"
+	"rs-apiserver.com/authentication"
+	"rs-apiserver.com/authutil"
+	"rs-apiserver.com/database"
+	"rs-apiserver.com/global"
+	"rs-apiserver.com/mail"
 	//"github.com/Jeffail/gabs/v2"
 )
 
@@ -105,9 +105,9 @@ func verifyEmail(emailString *string) bool {
 	return re.MatchString((*emailString))
 }
 
-func checkEmailUnique(email_value string) (bool, error) {
+func CheckEmailUnique(email_value string) (bool, error) {
 	var count *int
-	err := database.DB.Get(&count, "SELECT COUNT(*) FROM main.email WHERE email_value = ?", email_value)
+	err := database.DB.Get(&count, "SELECT COUNT(*) FROM user_base WHERE user_email = ?", email_value)
 	if err != nil {
 		return false, err
 	}
@@ -157,7 +157,7 @@ func PWVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.Conte
 	currentTime := time.Now()
 	currentTimeUnix := currentTime.Unix()
 	//Clear expired PW Verifications
-	_, err = database.DB.Exec("call main.clearExpiredPWVerification(?)", currentTimeUnix)
+	_, err = database.DB.Exec("call clearExpiredPWVerification(?)", currentTimeUnix)
 	if err != nil {
 		pwValidationResponse.Trace = 1
 		pwValidationResponse.ErrorMsg = err.Error()
@@ -167,7 +167,7 @@ func PWVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.Conte
 	}
 	//check to see if PW Verificatiopn record with supplied token exists and is not expired
 	var passwordReset PasswordReset
-	err = database.DB.Get(&passwordReset, "SELECT * FROM main.password_reset WHERE password_reset_token = ? AND password_reset_expires > ?;", pwSubmission.PwToken, currentTimeUnix)
+	err = database.DB.Get(&passwordReset, "SELECT * FROM password_reset WHERE password_reset_token = ? AND password_reset_expires > ?;", pwSubmission.PwToken, currentTimeUnix)
 	//err = database.DB.Get(&passwordReset, "SELECT * FROM main.password_reset WHERE password_reset_token = ? ;", pwSubmission.PwToken)
 	if err != nil {
 		pwValidationResponse.Trace = 2
@@ -202,7 +202,7 @@ func PWVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.Conte
 		return
 	}
 	//set pw for user in db
-	_, err = database.DB.Exec("INSERT INTO main.user_auth (user_id, user_pw) VALUES (?, ?) ON DUPLICATE KEY UPDATE user_pw = ?;", *passwordReset.User_id, pwHash, pwHash)
+	_, err = database.DB.Exec("INSERT INTO user_auth (user_id, user_pw) VALUES (?, ?) ON DUPLICATE KEY UPDATE user_pw = ?;", *passwordReset.User_id, pwHash, pwHash)
 
 	if err != nil {
 		pwValidationResponse.Trace = 6
@@ -247,7 +247,7 @@ func EmailVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.Co
 	currentTimeUnix := currentTime.Unix()
 	pwExpTimeUnix := pwExpTime.Unix()
 
-	_, err = database.DB.Exec("call main.clearExpiredEMailVerification(?)", currentTimeUnix)
+	_, err = database.DB.Exec("call clearExpiredEMailVerification(?)", currentTimeUnix)
 	if err != nil {
 		validationResp.Trace = 1
 		validationResp.ErrorMsg = err.Error()
@@ -256,7 +256,7 @@ func EmailVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.Co
 	}
 
 	var emailVerification []EmailVerification
-	err = database.DB.Select(&emailVerification, "SELECT * FROM main.email_verification WHERE email_verif_token = ? && email_verif_expires > ? ", tokenValidation.Token, currentTimeUnix)
+	err = database.DB.Select(&emailVerification, "SELECT * FROM email_verification WHERE email_verif_token = ? && email_verif_expires > ? ", tokenValidation.Token, currentTimeUnix)
 
 	if err != nil {
 		validationResp.Trace = 2
@@ -280,7 +280,7 @@ func EmailVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.Co
 
 	emailVerif := emailVerification[0]
 	//createNewUserFromEmail : email:string, pwRequestTokem:string, time exp: int )
-	_, err = database.DB.Exec("call main.createNewUserFromEmail(?,?,?)", emailVerif.Email_address, pwToken, pwExpTimeUnix)
+	_, err = database.DB.Exec("call createNewUserFromEmail(?,?,?)", emailVerif.Email_address, pwToken, pwExpTimeUnix)
 	if err != nil {
 		validationResp.Trace = 5
 		apireturn.ApiJSONReturn(err.Error(), apierrorkeys.APIReqError, &w)
@@ -296,6 +296,7 @@ func EmailVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.Co
 
 }
 
+// NEEDS TRANSLATION
 func Handler_AppSignUp(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 	//TODO: check source is valid client
 	var emailSubmission EmailSubmission
@@ -310,7 +311,7 @@ func Handler_AppSignUp(w http.ResponseWriter, r *http.Request, ctx context.Conte
 	// verify email syntax and sanitize
 	// check email unique
 	//checkEmailUnique
-	isUnique, err := checkEmailUnique(emailSubmission.EmailAddress)
+	isUnique, err := CheckEmailUnique(emailSubmission.EmailAddress)
 	if err != nil {
 		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.EmailTaken, W: &w})
 		return
@@ -336,22 +337,24 @@ func Handler_AppSignUp(w http.ResponseWriter, r *http.Request, ctx context.Conte
 		expTime := time.Now().Add(15 * time.Minute)
 		expTimeUnix := expTime.Unix()
 		// log email verif record to db
-		_, err = database.DB.Exec("INSERT INTO main.email_verification ( email_address, email_verif_token, email_verif_expires) VALUES ( ?,?,? );", emailSubmission.EmailAddress, token, expTimeUnix)
+		_, err = database.DB.Exec("INSERT INTO email_verification ( email_address, email_verif_token, email_verif_expires) VALUES ( ?,?,? );", emailSubmission.EmailAddress, token, expTimeUnix)
 		if err != nil {
 			isAvailable.Trace = 3
 			isAvailable.ErrorMsg = err.Error()
 			apireturn.ApiJSONReturn(isAvailable, apierrorkeys.APIReqError, &w)
 			return
 		}
+
 		// craft verification email
-		html := `<span>Welcome to KIBANX.</span><br/><span> Please follow <a href="https://` + global.EnvVars.Apiserver + `/set-pw?token=` + token + `&verifyEmail=true&newUser=true"> >this link< </a> to verify your email address and begin your investor onboarding process!</span>`
+		html := `<span>Welcome to ` + global.EnvVars.ServiceName + `.</span><br/><span> Please follow <a href="https://` + global.EnvVars.Apiserver + `/set-pw?token=` + token + `&verifyEmail=true&newUser=true"> >this link< </a> to verify your email address and begin your investor onboarding process!</span>`
 		emailBody, err := mail.CraftEmail(html)
 		if err != nil {
 			isAvailable.Trace = 4
 			apireturn.ApiJSONReturn(isAvailable, apierrorkeys.APIReqError, &w)
 			return
 		}
-		err = mail.SendMailSingle(emailSubmission.EmailAddress, emailBody, "KIBANX Support", global.EnvVars.SMTPSupportUserName, "KIBANX email verification")
+
+		err = mail.SendMailSingle(emailSubmission.EmailAddress, emailBody, global.EnvVars.ServiceName+" Support", global.EnvVars.SMTPSupportUserName, global.EnvVars.ServiceName+" email verification")
 		// send verification email
 		if err != nil {
 			isAvailable.Trace = 5
@@ -379,7 +382,7 @@ func Handler_RequestPasswordReset(w http.ResponseWriter, r *http.Request, ctx co
 	// verify email syntax and sanitize
 	// check email unique
 	//checkEmailUnique
-	isUnique, err := checkEmailUnique(emailSubmission.EmailAddress)
+	isUnique, err := CheckEmailUnique(emailSubmission.EmailAddress)
 	if err != nil {
 		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.EmailTaken, W: &w})
 		return

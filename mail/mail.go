@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"net/smtp"
 
-	"github.com/rogue-syntax/rs-goapiserver/apierrors"
-	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
-	"github.com/rogue-syntax/rs-goapiserver/global"
+	"rs-apiserver.com/apierrors"
+	"rs-apiserver.com/apireturn/apierrorkeys"
+	"rs-apiserver.com/global"
 )
 
 type Mail struct {

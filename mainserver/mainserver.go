@@ -7,15 +7,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/rogue-syntax/rs-goapiserver/apierrors"
+	"rs-apiserver.com/apierrors"
 
-	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
-	"github.com/rogue-syntax/rs-goapiserver/database"
+	"rs-apiserver.com/apireturn/apierrorkeys"
+	"rs-apiserver.com/database"
 
 	"runtime/debug"
 
-	"github.com/rogue-syntax/rs-goapiserver/global"
-	"github.com/rogue-syntax/rs-goapiserver/global/httpconfig"
+	"rs-apiserver.com/global"
+	"rs-apiserver.com/global/httpconfig"
 )
 
 // handler is a typical HTTP request-response handler in Go; details later
@@ -53,7 +53,7 @@ func PanicRecovery(handler http.Handler) http.Handler {
 }
 
 func Serve() {
-
+	fmt.Println( "SERVING" )
 	//set http config
 	httpconfig.SetHttpReqTimeout()
 	http.HandleFunc("/v1/", handler)

@@ -6,7 +6,8 @@ import (
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/rogue-syntax/rs-goapiserver/global"
+	"github.com/pkg/errors"
+	"rs-apiserver.com/global"
 )
 
 var minioClient *minio.Client
@@ -25,9 +26,21 @@ func IntiMinioClient() (*minio.Client, error) {
 
 func StoreFileToS3(data []byte, bucketKey string, fileKey string) error {
 
+	exists, err := CheckS3BucketExists(bucketKey)
+	if err != nil{
+		return  err
+	}
+
+	if( !exists ){
+		err := Makes3Bucket( bucketKey )
+		if err != nil {
+			return err
+		}
+	}
+
 	byteReader := bytes.NewReader(data)
 	ctx := context.Background()
-	_, err := minioClient.PutObject(ctx, bucketKey, fileKey, byteReader, byteReader.Size(), minio.PutObjectOptions{})
+	_, err = minioClient.PutObject(ctx, bucketKey, fileKey, byteReader, byteReader.Size(), minio.PutObjectOptions{})
 	if err != nil {
 		return err
 	}
@@ -36,6 +49,19 @@ func StoreFileToS3(data []byte, bucketKey string, fileKey string) error {
 
 func GetFileFromS3(bucketKey string, fileKey string) (*[]byte, error) {
 	var byteArray []byte
+
+	exists, err := CheckS3BucketExists(bucketKey)
+	if err != nil{
+		return &byteArray, err
+	}
+
+	if( !exists ){
+		err := Makes3Bucket( bucketKey )
+		if err != nil {
+			return &byteArray, err
+		}
+	}
+
 	reader, err := minioClient.GetObject(context.Background(), bucketKey, fileKey, minio.GetObjectOptions{})
 	defer reader.Close()
 	if err != nil {
@@ -64,6 +90,7 @@ func Makes3Bucket(namer string) error {
 
 func CheckS3BucketExists(namer string) (bool, error) {
 	found, err := minioClient.BucketExists(context.Background(), namer)
+	err = errors.Wrap(err, "CheckS3BucketExists")
 	if err != nil {
 		return found, err
 	} else {

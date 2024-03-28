@@ -1,14 +1,14 @@
 package tls
 
 import (
-	//"github.com/rogue-syntax/rs-goapiserver/global"
+	//"rs-apiserver.com/global"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"io/ioutil"
 	"net/http"
 
-	"github.com/rogue-syntax/rs-goapiserver/global"
+	"rs-apiserver.com/global"
 )
 
 type HttpClientTY struct {
@@ -20,7 +20,7 @@ var Htc HttpClientTY
 func CreateTLSConf() (tls.Config, error) {
 	var tfg tls.Config
 	rootCertPool := x509.NewCertPool()
-	pem, err := ioutil.ReadFile("/var/ssl/kbx-ca-cert.pem")
+	pem, err := ioutil.ReadFile(global.EnvVars.SSLCaCert)
 	if err != nil {
 		return tfg, err
 	}
@@ -29,7 +29,7 @@ func CreateTLSConf() (tls.Config, error) {
 		return tfg, err
 	}
 	clientCert := make([]tls.Certificate, 0, 1)
-	certs, err := tls.LoadX509KeyPair("/var/ssl/kbx-client-cert.pem", "/var/ssl/kbx-client-key.pem")
+	certs, err := tls.LoadX509KeyPair(global.EnvVars.SSLCliCert, global.EnvVars.SSLCliKey)
 	if err != nil {
 		return tfg, err
 	}
