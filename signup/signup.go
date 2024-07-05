@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/rogue-syntax/rs-goapiserver/apierrors"
+	"github.com/rogue-syntax/rs-goapiserver/apimaster"
 	"github.com/rogue-syntax/rs-goapiserver/apireturn"
 
 	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
@@ -132,14 +133,24 @@ func TestPWVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.C
 	fmt.Fprintf(w, isValidStr)
 }
 
+//input : PWSubmission
+/*output: PWValidationResponse
+error branches for client:
+	- PWReqNotFound : request not found or expired
+	- PWReqNotMet : pw reqs not met
+	- LoginFailed : unable to log user in
+*/
+var PWVerifEP_handler_ApiReq apimaster.ApiReqDef = apimaster.ApiReqDef{
+	API:           "/v1/signup/pw-verif-ep",
+	Method:        apimaster.POSTREQ,
+	Desc:          "Password Verification Endpoint",
+	Input:         apimaster.MakeStructDescriptorMap(new(PWSubmission)),
+	OutputData:    apimaster.MakeStructDescriptorMap(new(PWValidationResponse)),
+	OutputWrapper: apimaster.MakeStructDescriptorMap(new(apireturn.JsonReturn)),
+}
+
 func PWVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
-	//input : PWSubmission
-	/*output: PWValidationResponse
-	error branches for client:
-		- PWReqNotFound : request not found or expired
-		- PWReqNotMet : pw reqs not met
-		- LoginFailed : unable to log user in
-	*/
+
 	var pwSubmission PWSubmission
 	var pwValidationResponse PWValidationResponse
 	pwValidationResponse.IsValid = false
@@ -304,7 +315,7 @@ func Handler_AppSignUp(w http.ResponseWriter, r *http.Request, ctx context.Conte
 
 	err := decoder.Decode(&emailSubmission)
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.SystemError, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.SystemError, W: &w})
 		return
 	}
 
@@ -313,7 +324,7 @@ func Handler_AppSignUp(w http.ResponseWriter, r *http.Request, ctx context.Conte
 	//checkEmailUnique
 	isUnique, err := CheckEmailUnique(emailSubmission.EmailAddress)
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.EmailTaken, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.EmailTaken, W: &w})
 		return
 	}
 
@@ -375,7 +386,7 @@ func Handler_RequestPasswordReset(w http.ResponseWriter, r *http.Request, ctx co
 
 	err := decoder.Decode(&emailSubmission)
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.SystemError, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.SystemError, W: &w})
 		return
 	}
 
@@ -384,7 +395,7 @@ func Handler_RequestPasswordReset(w http.ResponseWriter, r *http.Request, ctx co
 	//checkEmailUnique
 	isUnique, err := CheckEmailUnique(emailSubmission.EmailAddress)
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.EmailTaken, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.EmailTaken, W: &w})
 		return
 	}
 

@@ -290,7 +290,7 @@ func SendTestEmail_handler(w http.ResponseWriter, r *http.Request, ctx context.C
 	welcomeEmailStr, _ := CraftTestEmail("HI THERE!")
 	err := SendMail(email, "Test Support", "support@test.com", "Test Email from Support", welcomeEmailStr)
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.SendMailError, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.SendMailError, W: &w})
 		return
 	}
 	fmt.Fprintf(w, `mail sent`)

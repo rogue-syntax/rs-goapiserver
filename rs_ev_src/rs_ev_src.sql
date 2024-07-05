@@ -1,0 +1,24 @@
+CREATE TABLE EVEvents (
+    Ev_id char(36),
+	Ev_Type INT,
+	Action_name CHAR(100),
+	Data JSON,
+	MetaData JSON,
+    CalledAt BIGINT,
+	Timestamp TIMESTAMP(6),
+    Date_time DATETIME(6),
+	Success BOOLEAN,
+	Version DECIMAL(5,3),
+	ErrMsg CHAR(255),
+	Req_Id char(36),
+  PRIMARY KEY (Ev_id, Date_time)
+) ENGINE = INNODB,
+  CHARACTER SET utf8mb4,
+  COLLATE utf8mb4_general_ci
+PARTITION BY RANGE (MONTH(Date_time)) (
+	PARTITION p0 VALUES LESS THAN (1),
+	PARTITION p1 VALUES LESS THAN (4),
+	PARTITION p2 VALUES LESS THAN (8),
+	PARTITION p3 VALUES LESS THAN (12),
+	PARTITION p4 VALUES LESS THAN MAXVALUE
+);

@@ -1,6 +1,8 @@
 package global
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
 
@@ -42,6 +44,9 @@ type EnvVarsType struct {
 	MinioEndpoint        string
 	MinioAccessKey       string
 	MinioSecretAccessKey string
+	MinioUseSSL          bool
+	MinioSSLKey          string
+	MinioSSLCert         string
 }
 
 var Reference_YYYY_MM_DD = "2006-01-02"
@@ -65,4 +70,12 @@ func InitEnvVars() error {
 		return errx
 	}
 	return nil
+}
+
+func GenerateUniqueString(length int) (string, error) {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }

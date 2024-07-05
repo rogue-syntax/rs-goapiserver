@@ -1,16 +1,16 @@
 package mainserver
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/rogue-syntax/rs-goapiserver/apierrors"
 
 	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
-	"github.com/rogue-syntax/rs-goapiserver/database"
 
 	"runtime/debug"
 
@@ -33,10 +33,10 @@ func PanicRecovery(handler http.Handler) http.Handler {
 		rw.Header().Set("Access-Control-Allow-Headers", "Content-Type,access-control-allow-origin, access-control-allow-headers")
 
 		//start db conection to mariadb server : database.DB
-		err := database.StartDB()
-		if err != nil {
-			apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.SendMailError, W: nil})
-		}
+		//err := database.StartDB()
+		//if err != nil {
+		//	apierrors.HandleError(nil, err, apierrorkeys.AppInitErr, &apierrors.ReturnError{Msg: apierrorkeys.AppInitErr, W: nil})
+		//}
 
 		defer func() {
 			if err := recover(); err != nil {
@@ -45,7 +45,7 @@ func PanicRecovery(handler http.Handler) http.Handler {
 				if rw.Header().Get("Content-Type") == "" {
 					rw.WriteHeader(http.StatusInternalServerError)
 				}
-				apierrors.HandleError(panicErr, panicErr.Error(), &apierrors.ReturnError{Msg: apierrorkeys.PanicError, W: nil})
+				apierrors.HandleError(nil, panicErr, panicErr.Error(), &apierrors.ReturnError{Msg: apierrorkeys.PanicError, W: nil})
 			}
 		}()
 		handler.ServeHTTP(rw, rq)
@@ -62,7 +62,7 @@ func Serve() {
 		WriteTimeout: 9600 * time.Second}
 	l, err := net.Listen("tcp4", "0.0.0.0:9990")
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.ServeHttpError, W: nil})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.ServeHttpError, W: nil})
 	}
 	s.Serve(l)
 }

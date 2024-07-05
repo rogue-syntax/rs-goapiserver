@@ -65,6 +65,15 @@ type UserSession struct {
 	User_ip_aton uint32
 }
 
+func AuthenticateUser(w *http.ResponseWriter, ctx context.Context) (*user.UserExternal, error) {
+	usr, err := apicontext.CtxGetUser(ctx)
+	if err != nil {
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: w})
+		return nil, err
+	}
+	return usr, nil
+}
+
 // Handler_AppSignOut
 //   - Expects json enocded ExternalUser
 func Handler_AppSignOut(w http.ResponseWriter, r *http.Request, ctx context.Context) {
@@ -73,13 +82,13 @@ func Handler_AppSignOut(w http.ResponseWriter, r *http.Request, ctx context.Cont
 
 	if err != nil {
 
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
 		return
 	}
 
 	err = killUserSessionForID_x_Agent(r, true, (*usr).User_id)
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
 		return
 	}
 
@@ -129,7 +138,7 @@ func killUserSessionForID_x_Agent(r *http.Request, useCookie bool, user_id_in in
 func Handler_AppSignIn(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 	usr, err := verifyUser(r.FormValue("pw"), r.FormValue("em"))
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
 		return
 	}
 	// password is authrnticated
@@ -137,7 +146,7 @@ func Handler_AppSignIn(w http.ResponseWriter, r *http.Request, ctx context.Conte
 	isKbxb := r.FormValue("kbxb")
 	userToken, err := issueToken((*usr).User_id, isKbxb, w, r)
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
 		return
 	}
 
@@ -305,13 +314,13 @@ func Handler_GenApiKey(w http.ResponseWriter, r *http.Request, ctx context.Conte
 	usr, err := apicontext.CtxGetUser(ctx)
 
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
 		return
 	}
 
 	hexStrForClient, bytesForDB, err := authutil.MakeAuthToken()
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
 		return
 	}
 	//return hex string to user
@@ -320,7 +329,7 @@ func Handler_GenApiKey(w http.ResponseWriter, r *http.Request, ctx context.Conte
 	hashForStorage := authutil.HashTokenBytes(bytesForDB)
 	_, err = database.DB.Exec("call UpdateUserApiTok(?,?)", (*usr).User_id, hashForStorage)
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
 		return
 	}
 	apiKeyReturn := ApiKeyReturn{ApiSecret: hexStrForClient,
@@ -344,7 +353,7 @@ func Handler_TestReqVerif(w http.ResponseWriter, r *http.Request, ctx context.Co
 	usr, err := apicontext.CtxGetUser(ctx)
 
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
 		return
 	}
 

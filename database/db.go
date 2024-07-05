@@ -25,6 +25,10 @@ type SimpleWhere struct {
 // var DB *sql.DB
 var DB *sqlx.DB
 
+/*
+refactor this so that tsl conf is created baed on env outside of db
+so wr can do tls setupd for minio and other things also
+*/
 func StartDB() error {
 	//connect to db with tls / ssl if not dev env
 	if global.EnvVars.DBTLS {
@@ -51,7 +55,7 @@ func StartDB() error {
 }
 
 func connectGDBTLS() error {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?tls=custom",
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?tls=custom&parseTime=true",
 		global.EnvVars.DbserverUser,
 		global.EnvVars.DbserverPW,
 		global.EnvVars.Dbserver,
@@ -71,7 +75,7 @@ func connectGDBTLS() error {
 }
 
 func connectGDB() error {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
 		global.EnvVars.DbserverUser,
 		global.EnvVars.DbserverPW,
 		global.EnvVars.Dbserver,

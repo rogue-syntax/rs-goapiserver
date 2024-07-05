@@ -43,7 +43,7 @@ type ProgressEvent struct {
 func TestWS(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 	usr, err := apicontext.CtxGetUser(ctx)
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
 		return
 	}
 	fmt.Fprintf(w, "big tings")
@@ -84,7 +84,7 @@ func GetUserSocket(usr *user.UserExternal, r *http.Request) *websocket.Conn {
 func WsEndpoint(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 	usr, err := apicontext.CtxGetUser(ctx)
 	if err != nil {
-		apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
 		return
 	}
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }

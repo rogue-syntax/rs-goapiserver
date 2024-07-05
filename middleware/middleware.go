@@ -1,13 +1,18 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
+	"io"
 
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/rogue-syntax/rs-goapiserver/apicontext"
 	"github.com/rogue-syntax/rs-goapiserver/apierrors"
+	"github.com/rogue-syntax/rs-goapiserver/apimaster"
+	"github.com/rogue-syntax/rs-goapiserver/rs_go_requestlogger"
 
 	"github.com/rogue-syntax/rs-goapiserver/authentication"
 )
@@ -63,21 +68,64 @@ type EventualHandler func(http.ResponseWriter, *http.Request, context.Context)
 func RouteHandler(routeString string, reqHandler EventualHandler, mwList *[]RequestMiddleware) {
 	http.HandleFunc(routeString, func(w http.ResponseWriter, r *http.Request) {
 		reqCtx := context.Background()
+		//LOG REQUEST HERE
+		var rSRequestLogger rs_go_requestlogger.RSRequestLogger
+		rSRequestLogger.Endpoint = routeString
+
+		rSRequestLogger.RequestVars.RequestURI = r.RequestURI
+		rSRequestLogger.RequestVars.Method = r.Method
+		rSRequestLogger.RequestVars.RemoteAddr = r.RemoteAddr
+		rSRequestLogger.RequestVars.UserAgent = r.UserAgent()
+		rSRequestLogger.RequestVars.Referer = r.Referer()
+		rSRequestLogger.RequestVars.Host = r.Host
+		rSRequestLogger.RequestVars.Header = r.Header
+
+		//GET FORM DATA
+		r.ParseForm()
+		rSRequestLogger.RequestVars.PostForm = r.PostForm
+
+		//GET COOKIES
+		cookies := r.Cookies()
+		cookieMap := make(map[string]string)
+		for _, cookie := range cookies {
+			cookieMap[cookie.Name] = cookie.Value
+		}
+		rSRequestLogger.RequestVars.Cookies = cookieMap
+		rSRequestLogger.RequestVars.URL = r.URL.String()
+
+		//GET BODY IN STRING FORM
+		bytedata, _ := io.ReadAll(r.Body)
+		reqBodyString := string(bytedata)
+		rSRequestLogger.RequestVars.Body = reqBodyString
+		r.Body = io.NopCloser(bytes.NewBuffer(bytedata))
+
+		reqID := uuid.New().String()
+		rSRequestLogger.Req_id = reqID
+		//STORE LOG IN CTX
+		reqCtx = rs_go_requestlogger.CtxWithRSLogger(reqCtx, &rSRequestLogger)
+
+		reqCtx = rs_go_requestlogger.CtxWithReqId(reqCtx, reqID)
+
+		r = r.WithContext(reqCtx)
+
 		var err error
 		for i := 0; i < len(*mwList); i++ {
 			reqCtx, err = (*mwList)[i].ProcessRequest(reqCtx, routeString, w, r)
 			if err != nil {
-				apierrors.HandleError(err, err.Error(), &apierrors.ReturnError{Msg: err.Error(), W: &w})
+				apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: err.Error(), W: &w})
 				return
 			}
 		}
+		//request logger on request finished
+		defer func() {
+			apierrors.HandleReqLog(r)
+		}()
 		reqHandler(w, r, reqCtx)
 	})
 }
 
 /*
 RouteDef: A Struct for defining routes
-
   - RouteStr: The endpoint where route can be reached , i.e. "/v1/getSomething"
   - HandlerFunc: The handling fucntion to contain the business logic of the route
   - MiddlewareSli: The slice collection of middleware obects implementing the RequestMiddleware interface,
@@ -87,6 +135,7 @@ type RouteDef struct {
 	RouteStr      string
 	HandlerFunc   EventualHandler
 	MiddlewareSli *[]RequestMiddleware
+	ReqDef        *apimaster.ApiReqDef
 }
 
 /*
@@ -96,10 +145,21 @@ SetRouteDefs:
   - Example: \
     var routeDef RouteDef{RouteStr:}
 */
-func SetRouteDefs(defs *[]RouteDef) {
+
+func SetRouteDefs(defs *[]RouteDef, listName string) {
 	//routeDef := RouteDef{RouteStr: "/v1/postSomething", }
+	//if the listName / category doesn't exist yet, create it
+	_, ok := apimaster.ApiReqMap[listName]
+	if !ok {
+		apimaster.ApiReqMap[listName] = make(map[string]apimaster.ApiReqDef)
+	}
 	for _, def := range *defs {
+		//register the route with the middleware
 		RouteHandler(def.RouteStr, def.HandlerFunc, def.MiddlewareSli)
+		//register the route with the apimaster api request map
+		if def.ReqDef != nil {
+			apimaster.ApiReqMap[listName][def.RouteStr] = *def.ReqDef
+		}
 	}
 }
 
@@ -166,6 +226,7 @@ func (BlankMWType) ProcessRequest(ctx context.Context, routeString string, w htt
 
 // //////////////////////
 // REQUEST VERIFICATION
+//   - Get User in handler with : usr, err := apicontext.CtxGetUser(ctx)
 type RequestVerifType struct {
 }
 
@@ -177,6 +238,8 @@ func SetReqVerifMiddleware() {
 }
 func (RequestVerifType) ProcessRequest(ctx context.Context, routeString string, w http.ResponseWriter, r *http.Request) (context.Context, error) {
 	ctx, err := authentication.VerifyRequest(ctx, routeString, r.FormValue(AUTH_MODE_KEY), w, r)
+	usr, _ := apicontext.CtxGetUser(ctx)
+	r = r.WithContext(apicontext.CtxWithUser(r.Context(), usr))
 	return ctx, err
 }
 

@@ -2,12 +2,14 @@ package apicontext
 
 import (
 	"context"
-	"errors"
+
+	"github.com/pkg/errors"
 
 	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
 	"github.com/rogue-syntax/rs-goapiserver/entities/user"
 )
 
+// A simple string context object
 type devGenMsgType string
 
 const devGenMsgKey devGenMsgType = "devGenMsg"
@@ -24,6 +26,7 @@ func CtxGetdevGenMsg(ctx context.Context) (*string, error) {
 	return user, nil
 }
 
+// a user context object
 type userKeyType string
 
 const userKey userKeyType = "user"

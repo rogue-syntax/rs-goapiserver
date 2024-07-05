@@ -53,7 +53,7 @@ func ApiJSONReturn(jsonRet interface{}, errMsg string, w *http.ResponseWriter) {
 		jr := JsonReturn{Error: errMsg, Data: jsonRet}
 		jrStr, err := json.Marshal(jr)
 		if err != nil {
-			zerologger.LogError(&err, apierrorkeys.JSONMarshalError)
+			zerologger.LogError(&err, apierrorkeys.JSONMarshalError, nil)
 			fmt.Fprint(*w, `{ "Error":"`+apierrorkeys.JSONMarshalError+`", Data:"`+err.Error()+`"}`)
 		}
 		fmt.Fprint(*w, string(jrStr))

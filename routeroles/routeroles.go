@@ -9,10 +9,13 @@ import (
 	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
 )
 
-type intSlice = []int
+func SetRouteRoles(roleMap map[string][]int) {
+	RouteRoles = roleMap
+}
 
 var RouteRoles = map[string][]int{
 	"/v1/test/testRoleAuthentication": {1},
+	"/v1/api":                         {1},
 }
 
 func TestRoleAuth(w http.ResponseWriter, r *http.Request, ctx context.Context) {

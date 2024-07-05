@@ -3,8 +3,14 @@ package util
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"reflect"
+
+	"github.com/pkg/errors"
+
+	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
 )
 
 func Marshal(i interface{}) ([]byte, error) {
@@ -72,6 +78,33 @@ func GetReqFromJSON(r *http.Request, reqObj interface{}) error {
 		return err
 	}
 	return nil
+}
+
+func CheckForPointer(i interface{}) bool {
+	t := reflect.TypeOf(i)
+	if t.Kind() == reflect.Ptr {
+		return true
+	}
+	return false
+}
+
+func DistilInterfaceString(v interface{}) (returnStr string, err error) {
+	if v == nil {
+		returnStr = ""
+		return returnStr, err
+	}
+
+	switch v.(type) {
+	case *string:
+		returnStr = *v.(*string)
+	case *int:
+		returnStr = fmt.Sprint(*v.(*int))
+		// add cases for other types if needed
+	default:
+		err = errors.New(apierrorkeys.InvalidType)
+	}
+
+	return returnStr, err
 }
 
 /*
