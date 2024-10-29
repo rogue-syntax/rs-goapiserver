@@ -5,6 +5,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 
@@ -306,3 +307,23 @@ func route_uploadBPTFile(w http.ResponseWriter, r *http.Request, usr *user.UserE
 
 }
 */
+
+// Function to find the MIME type based on file extension
+func FindMimeType(fileName string, lookup map[string]map[string]string) string {
+
+	fileExt := strings.ToLower(filepath.Ext(fileName))
+
+	// Remove the leading dot from the file extension
+	if len(fileExt) > 0 && fileExt[0] == '.' {
+		fileExt = fileExt[1:]
+	}
+
+	for _, mimeMap := range lookup {
+		for mimeType, ext := range mimeMap {
+			if ext == fileName {
+				return mimeType
+			}
+		}
+	}
+	return "application/octet-stream" // Default MIME type if not found
+}

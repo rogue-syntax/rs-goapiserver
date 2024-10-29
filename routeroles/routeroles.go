@@ -16,6 +16,9 @@ func SetRouteRoles(roleMap map[string][]int) {
 var RouteRoles = map[string][]int{
 	"/v1/test/testRoleAuthentication": {1},
 	"/v1/api":                         {1},
+	"/v1/api-data":                    {1},
+	"/v1/observe/logGoroutineCount":   {1},
+	"/v1/observe/getUserSockets":      {1},
 }
 
 func TestRoleAuth(w http.ResponseWriter, r *http.Request, ctx context.Context) {

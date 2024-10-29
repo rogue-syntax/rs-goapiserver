@@ -2,6 +2,7 @@ package rs_ev_src
 
 import (
 	"database/sql"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -28,14 +29,27 @@ const (
 	ERRORFLAG_STORE_TO_SQL   = "STORE_TO_SQL"
 )
 
+var InjectedStreamer EVEventStreamer
+
 // SetDBCONN sets the global variable DBCONN to the database connection
 var DBCONN *sql.DB
 
 // intialize the package with the database connection and the event names
 // see the EVEventNames map in this package for an example
-func INIT(db *sql.DB, eVEventNames map[EVTypes_int]string) {
+func INIT(db *sql.DB, eVEventNames map[EVTypes_int]string, injectedStreamer EVEventStreamer) {
 	EVEventNames = eVEventNames
 	DBCONN = db
+	if injectedStreamer != nil {
+		fmt.Println("injecting streamer")
+		InjectedStreamer = injectedStreamer
+	}
+}
+
+func GetEventName(evTyInt EVTypes_int) string {
+	if name, ok := EVEventNames[evTyInt]; ok {
+		return name
+	}
+	return ""
 }
 
 const (
@@ -72,6 +86,8 @@ const (
 )
 
 var EVEventNames = map[EVTypes_int]string{}
+
+type SerializableEvent EVEvent[interface{}, interface{}, interface{}]
 
 /*
 EXAMPLE FUNCTION AND DATA WE WANT TO RUN AS AN EVENT
@@ -125,21 +141,22 @@ type UnixTimeMilliseconds int64
 //   - EVTypes_int
 //   - IEVAction (interface)
 type EVEvent[DATATYPE any, CONTEXTTYPE any, RETURNTYPE any] struct {
-	Ev_id         uuid.UUID
-	Ev_type       EVTypes_int
-	Action_name   string
-	Action        IEVAction[DATATYPE, RETURNTYPE] `gob:"-"`
-	Data          DATATYPE
-	MetaData      CONTEXTTYPE
-	CalledAt      UnixTimeMilliseconds
-	Timestamp     time.Time
-	Date_time     string
-	Success       bool
-	Version       EVEventSchemaVersion
-	ErrMsg        string
-	Req_id        string //36 char uuid
-	Attempt       int
-	Schedule_type EVScheduleTypes_int
+	Ev_id          uuid.UUID
+	Ev_type        EVTypes_int
+	Action_name    string
+	Action         IEVAction[DATATYPE, RETURNTYPE] `gob:"-"`
+	Data           DATATYPE
+	MetaData       CONTEXTTYPE
+	CalledAt       UnixTimeMilliseconds
+	Timestamp      time.Time
+	Date_time      string
+	Success        bool
+	Version        EVEventSchemaVersion
+	ErrMsg         string
+	Req_id         string //36 char uuid
+	Attempt        int
+	Schedule_type  EVScheduleTypes_int
+	Event_streamer *EVEventStreamer
 }
 
 type EVEventSerial struct {
@@ -184,15 +201,16 @@ func (e *EVEvent[DATATYPE, CONTEXTTYPE, RETURNTYPE]) SetEVEvent(action IEVAction
 	e.CalledAt = UnixTimeMilliseconds(time.Now().UnixMilli())
 	e.Req_id = req_id
 	e.Schedule_type = scheduleType
-
-	//TBD IF ADDING TO A QUEUE OR STACK?
-	/*
-		EVActionMap[mapKey] = func() EVEventExecError {
-			err := DoEVEventAction[DATATYPE](e)
-			return err
-		}
-	*/
 	e.ErrMsg = ""
+	if InjectedStreamer != nil {
+		fmt.Println("setting_streamer")
+		e.Event_streamer = &InjectedStreamer
+	}
+}
+
+// unused
+func (e *EVEvent[DATATYPE, CONTEXTTYPE, RETURNTYPE]) SetStreamer(eStreamer EVEventStreamer) {
+	e.Event_streamer = &eStreamer
 }
 
 /*
@@ -256,7 +274,7 @@ func DoEVEventAction[DATATYPE any, CONTEXTTYPE any, RETURNTYPE any](e *EVEvent[D
 		e.Success = true
 	}
 	//stream the event
-	eInterface := &EVEvent[interface{}, interface{}, interface{}]{
+	eInterface := &SerializableEvent{
 		Ev_id:       e.Ev_id,
 		Ev_type:     e.Ev_type,
 		Action_name: e.Action_name,
@@ -271,7 +289,13 @@ func DoEVEventAction[DATATYPE any, CONTEXTTYPE any, RETURNTYPE any](e *EVEvent[D
 		Req_id:      e.Req_id,
 		Attempt:     e.Attempt,
 	}
-	err = StreamEV(eInterface)
+	if e.Event_streamer != nil {
+		//fmt.Println("found_injected_streamer")
+		err = (*e.Event_streamer).StreamEV(eInterface)
+	} else {
+		//fmt.Println("using default streamer")
+		err = StreamEV(eInterface)
+	}
 	if err != nil {
 		err2 := errors.Wrap(err, ERRORFLAG_STREAM_EVENT_1)
 		evError.StreamError = err2
@@ -383,7 +407,7 @@ func LoadFromGOBFile() ([]EVEvent[interface{}, interface{}, interface{}], error)
 	return events, nil
 }
 
-func StreamEV(ev *EVEvent[interface{}, interface{}, interface{}]) error {
+func StreamEV(ev *SerializableEvent) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 	file, err := os.OpenFile(string(EV_EVENT_JSONB_FILE_LOCATION), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -424,7 +448,7 @@ func LoadFromJSONFile() ([]EVEventSerial, error) {
 	return events, nil
 }
 
-func StoreEV(e *EVEvent[interface{}, interface{}, interface{}]) error {
+func StoreEV(e *SerializableEvent) error {
 	dataJson, err := json.Marshal(&e.Data)
 	if err != nil {
 		return err
@@ -491,3 +515,11 @@ PARTITION BY RANGE (MONTH(Date_time)) (
 	PARTITION p4 VALUES LESS THAN MAXVALUE
 );
 `
+
+type EVEventStreamer interface {
+	StreamEV(ev *SerializableEvent) error
+}
+
+type EVEventSubscription interface {
+	Subscriber(ev *SerializableEvent) error
+}

@@ -3,6 +3,7 @@ package sql_tools
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -24,6 +25,21 @@ var GetOrderByCode = func(orderInt int) string {
 		return val
 	}
 	return ORDERBY_ASC
+}
+
+var VerifySortColFromStringAndStruct = func(sortCol string, data interface{}) bool {
+	val := reflect.TypeOf(data)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem() // If a pointer to a struct is passed, get the type of the dereferenced object
+	}
+
+	// Check if the struct has the field
+	for i := 0; i < val.NumField(); i++ {
+		if val.Field(i).Name == sortCol {
+			return true
+		}
+	}
+	return false
 }
 
 /*
@@ -216,8 +232,8 @@ func IsStringTaken(table string, value string, field string, constraints []Simpl
 	}
 	qStr += ";"
 	err := database.DB.Get(&count, qStr, valuesSli...)
-	//logme := apierrors.NewLogError(apierrorkeys.DBQueryError, apierrors.LogJsonArray(qStr, table, value, valuesSli, field))
-	//fmt.Println(logme)
+	logme := apierrors.NewLogError(apierrorkeys.DBQueryError, apierrors.LogJsonArray(qStr, table, value, valuesSli, field))
+	fmt.Println(logme)
 	if err != nil {
 		jsonError := apierrors.LogJsonArray(qStr, table, value, field)
 		return false, errors.Wrap(err, apierrors.NewLogError(apierrorkeys.DBQueryError, jsonError))
@@ -247,4 +263,93 @@ func SimpleRefCount(table string, value string, field string, contraints []Simpl
 	}
 
 	return count, nil
+}
+
+var MYSQL_COMMANDS = []string{
+	"SELECT", "INSERT", "UPDATE", "DELETE", "REPLACE", "LOAD DATA", "LOAD XML",
+	"CREATE", "ALTER", "DROP", "TRUNCATE", "RENAME", "SHOW", "DESCRIBE", "EXPLAIN",
+	"LOCK", "UNLOCK", "SET", "USE", "START TRANSACTION", "COMMIT", "ROLLBACK",
+	"SAVEPOINT", "RELEASE SAVEPOINT", "SET TRANSACTION", "GRANT", "REVOKE",
+}
+
+func CheckForSQLInjection(s string) bool {
+	// Check for common SQL injection patterns
+	sqlInjectionPatterns := []string{
+		`(?i)\bSELECT\b`, `(?i)\bINSERT\b`, `(?i)\bUPDATE\b`, `(?i)\bDELETE\b`,
+		`(?i)\bDROP\b`, `(?i)\bTRUNCATE\b`, `(?i)\bALTER\b`, `(?i)\bCREATE\b`,
+		`(?i)\bREPLACE\b`, `(?i)\bEXEC\b`, `(?i)\bUNION\b`, `(?i)\bOR\b`,
+		`(?i)\bAND\b`, `(?i)\b--\b`, `(?i)\b;\b`, `(?i)\b'\b`, `(?i)\b"\b`,
+	}
+
+	for _, pattern := range sqlInjectionPatterns {
+		matched, _ := regexp.MatchString(pattern, s)
+		if matched {
+			return true
+		}
+	}
+
+	// Check if the string matches any of the MySQL commands exactly
+	for _, command := range MYSQL_COMMANDS {
+		if strings.EqualFold(s, command) {
+			return true
+		}
+	}
+
+	return false
+}
+
+type UniqueId struct {
+	Unique_id_value      interface{}
+	Unique_id_field_name string
+	AndOr                AndOr
+	Compartitor          Comparitor
+}
+
+type TableParams struct {
+	OrderBy   string
+	Direction string
+	Offset    int
+	Limit     int
+}
+
+func MakeTableQuery(baseQuery string, uniqueIds []UniqueId, tableParams *TableParams) (string, []interface{}, error) {
+	var valuesSli []interface{}
+
+	var SqlInjected bool
+	if CheckForSQLInjection(tableParams.OrderBy) || CheckForSQLInjection(tableParams.Direction) {
+		SqlInjected = true
+	}
+
+	if SqlInjected {
+		return "", nil, errors.New("SQL Injection detected: " + tableParams.OrderBy + "," + tableParams.Direction)
+	}
+
+	qStr := baseQuery
+
+	if uniqueIds != nil && len(uniqueIds) > 0 {
+		qStr += " WHERE "
+		for i := 0; i < len(uniqueIds); i++ {
+			qStr += uniqueIds[i].Unique_id_field_name + " " + string(uniqueIds[i].Compartitor) + " ? "
+			valuesSli = append(valuesSli, uniqueIds[i].Unique_id_value)
+			if i < len(uniqueIds)-1 {
+				qStr += " " + string(uniqueIds[i].AndOr) + " "
+			}
+		}
+	}
+
+	if tableParams.OrderBy != "" {
+		qStr += " ORDER BY " + tableParams.OrderBy + " " + tableParams.Direction
+	}
+
+	if tableParams.Limit > 0 {
+		qStr += " LIMIT ?"
+		valuesSli = append(valuesSli, tableParams.Limit)
+	}
+
+	if tableParams.Offset > 0 {
+		qStr += " OFFSET ?"
+		valuesSli = append(valuesSli, tableParams.Offset)
+	}
+
+	return qStr, valuesSli, nil
 }

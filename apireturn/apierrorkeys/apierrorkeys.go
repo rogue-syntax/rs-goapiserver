@@ -20,11 +20,11 @@ const (
 	AuthHeaderNotFound = "AUTH_HEADER_NOT_FOUND"
 
 	//Account
-	AccountError                  = "ACCOUNT_ERROR"
-	NonexistentAccount            = "NONEXISTENT_ACCOUNT"
-	DefunctCompanyMemeberships    = "DEFUNCT_COMPANY_MEMBERSHIPS"
-	NoCompanyMemeberships         = "NO_COMPANY_MEMBERSHIPS"
-	COMPANY_AUTHNTICATED_MISMATCH = "COMPANY_AUTHNTICATED_MISMATCH"
+	AccountError                 = "ACCOUNT_ERROR"
+	NonexistentAccount           = "NONEXISTENT_ACCOUNT"
+	DefunctCompanyMemeberships   = "DEFUNCT_COMPANY_MEMBERSHIPS"
+	NoCompanyMemeberships        = "NO_COMPANY_MEMBERSHIPS"
+	CompanyAuthenicationMismatch = "COMPANY_AUTHENTICATION_MISMATCH"
 
 	// Password
 	PWIncorrect   = "PASSWORD_INCORRECT"
@@ -52,6 +52,7 @@ const (
 
 	// File Operations
 	FileUploadError      = "FileUploadError"
+	FileDownloadError    = "FileDownloadError"
 	FileEmpty            = "FILE_EMPTY"
 	MapKeyNotFound       = "MAP_KEY_NOT_FOUND"
 	UnauthorizedFileType = "UNAUTHORIZED_FILE_TYPE"
@@ -106,4 +107,12 @@ const (
 	UDFADDError = "UDF_ADD_ERROR"
 
 	RequestError = "REQUEST_ERROR"
+
+	EventSubscriptionError = "EVENT_SUBSCRIPTION_ERROR"
+
+	GoRoutineRecovery = "GOROUTINE_RECOVERY"
+
+	ResourceOwnershipMismatch = "RESOURCE_OWNERSHIP_MISMATCH"
+
+	ExcelPipelineError = "EXCEL_PIPELINE_ERROR"
 )

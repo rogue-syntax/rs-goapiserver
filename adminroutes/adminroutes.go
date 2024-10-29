@@ -9,6 +9,7 @@ import (
 
 	"github.com/rogue-syntax/rs-goapiserver/authutil"
 	"github.com/rogue-syntax/rs-goapiserver/middleware"
+	"github.com/rogue-syntax/rs-goapiserver/observability"
 	"github.com/rogue-syntax/rs-goapiserver/routeroles"
 
 	"github.com/rogue-syntax/rs-goapiserver/signup"
@@ -83,5 +84,9 @@ func SetAdminRoutes() {
 	middleware.RouteHandler("/v1/test/testPWVerificationEP", signup.TestPWVerifEP_handler, &middleware.BlankMiddleware)
 
 	middleware.RouteHandler("/v1/test/testRoleAuthentication", routeroles.TestRoleAuth, &middleware.RoleBaseReqVerifMiddleware)
+
+	middleware.RouteHandler("/v1/observe/logGoroutineCount", observability.Handler_LogGoroutineCount, &middleware.RoleBaseReqVerifMiddleware)
+
+	middleware.RouteHandler("/v1/observe/getUserSockets", observability.Handler_GetUserSockets, &middleware.RoleBaseReqVerifMiddleware)
 
 }

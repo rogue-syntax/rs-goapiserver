@@ -5,32 +5,42 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
+	"github.com/google/uuid"
 	"github.com/rogue-syntax/rs-goapiserver/apicontext"
 	"github.com/rogue-syntax/rs-goapiserver/apierrors"
 	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
-	"github.com/rogue-syntax/rs-goapiserver/authentication"
-	"github.com/rogue-syntax/rs-goapiserver/entities/user"
 
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
+type GenericEvents struct {
+	EventKey  int
+	EventName string
+}
+
+const (
+	CONNECTED = iota
+	DISCONNECTED
+	TEST
+)
+
+var GenericEventsMap = map[int]SocketEvent{
+	CONNECTED:    {EventKey: CONNECTED, EventName: "CONNECTED", Data: nil},
+	DISCONNECTED: {EventKey: DISCONNECTED, EventName: "DISCONNECTED", Data: nil},
+	TEST:         {EventKey: TEST, EventName: "TEST", Data: nil},
 }
 
 type SocketEvent struct {
-	EventKey string
-	Data     interface{}
+	EventKey  int
+	EventName string
+	Data      interface{}
 }
 
-var UserSockets map[int]map[string]*websocket.Conn
-
-func InitWebSockets() {
-
-	UserSockets = make(map[int]map[string]*websocket.Conn)
+type IncomingSocketEvent struct {
+	User_id     int
+	SocketEvent SocketEvent
+	Conn_id     uuid.UUID
 }
 
 type ProgressEvent struct {
@@ -40,90 +50,33 @@ type ProgressEvent struct {
 	End       int
 }
 
+// return a simple message to the user who calls this endpoint
 func TestWS(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 	usr, err := apicontext.CtxGetUser(ctx)
 	if err != nil {
 		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
 		return
 	}
-	fmt.Fprintf(w, "big tings")
+	msg := GenericEventsMap[TEST]
+	Channel_WriteToUserSockets([]int{usr.User_id}, &msg)
 
-	usb, _ := json.Marshal(UserSockets)
-
-	fmt.Fprintf(w, string(usb))
-
-	user_agent := authentication.GetUserAgentHashFromRequest(r)
-
-	if ws, ok := UserSockets[*&usr.User_id][user_agent]; ok {
-		//if ws, ok := userSockets[(*usr).UID]; ok {
-		time.Sleep(5 * time.Second)
-
-		err := ws.WriteMessage(1, []byte(`{ "action":"ethPayTxCB", "msg":"success"}`))
-		if err != nil {
-			fmt.Fprintf(w, err.Error())
-		}
-
-		time.Sleep(8 * time.Second)
-
-		err = ws.WriteMessage(1, []byte(`{ "action":"payTokenTxCB", "msg":"success"}`))
-		if err != nil {
-			fmt.Fprintf(w, err.Error())
-		}
-
-	}
 }
 
-func GetUserSocket(usr *user.UserExternal, r *http.Request) *websocket.Conn {
-	user_agent := authentication.GetUserAgentHashFromRequest(r)
-	if wsu, ok := UserSockets[(*usr).User_id][user_agent]; ok {
-		return wsu
-	}
-	return nil
-}
-
+// call this endpoint to establish a websocket connection
 func WsEndpoint(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 	usr, err := apicontext.CtxGetUser(ctx)
 	if err != nil {
 		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.AuthorizationError, W: &w})
 		return
 	}
-	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
-	// upgrade this connection to a WebSocket
-	// connection
-	user_agent := authentication.GetUserAgentHashFromRequest(r)
-	//socket exists
-	/*_, isUser :=  userSockets[(*usr).User_id]
-	if !isUser {
-		userSockets[(*usr).User_id]
-	}*/
-	if wsu, ok := UserSockets[(*usr).User_id][user_agent]; ok {
-		//close existing socket, replace with new one
-		wsu.Close()
-		wsu, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-
-		}
-
-		UserSockets[(*usr).User_id][user_agent] = wsu
-
-		msg, _ := json.Marshal(SocketEvent{EventKey: "CONNECTION", Data: "Client Connected"})
-		_ = wsu.WriteMessage(1, msg)
-		Reader(wsu, r)
-
-	} else {
-		//socket doesnt exist
-		ws, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-
-		}
-		UserSockets[(*usr).User_id] = make(map[string]*websocket.Conn)
-		UserSockets[(*usr).User_id][user_agent] = ws
-		msg, _ := json.Marshal(SocketEvent{EventKey: "CONNECTION", Data: "Client Connected"})
-		_ = ws.WriteMessage(1, msg)
-		Reader(ws, r)
+	req := WebSocketChanReq{Type: AddConn, User_ids: []int{(*usr).User_id}, Response: make(chan WebSocketChanResp), W: &w, R: r}
+	wsChannel <- req
+	resp := <-req.Response
+	if resp.Err != nil {
+		apierrors.HandleError(nil, resp.Err, apierrorkeys.WebSocketError, &apierrors.ReturnError{Msg: apierrorkeys.WebSocketError, W: &w})
+		return
 	}
-
 }
 
 func Reader(conn *websocket.Conn, r *http.Request) {
@@ -141,11 +94,37 @@ func Reader(conn *websocket.Conn, r *http.Request) {
 
 		sessionBy := []byte(string(p) + " - " + cookie.Value)
 		if err := conn.WriteMessage(1, sessionBy); err != nil {
-
 			return
 		}
 
 	}
+}
+
+// send a message user(s)
+// []int{1,2,3} will send the message to users with user_id 1, 2, and 3
+func Channel_WriteToUserSockets(user_ids []int, msg *SocketEvent) error {
+	msgBytes, _ := json.Marshal(msg)
+	msgStr := string(msgBytes)
+	req := WebSocketChanReq{Type: SendMsg, User_ids: user_ids, Msg: msgStr, Response: make(chan WebSocketChanResp)}
+	wsChannel <- req
+	resp := <-req.Response
+	if resp.Err != nil {
+		return resp.Err
+	}
+	return nil
+}
+
+func Channel_GetUserSockets() (map[int][]*RSSocketConnection, error) {
+	var returnMap map[int][]*RSSocketConnection
+	req := WebSocketChanReq{Type: GetAllSockets, User_ids: nil, Msg: "", Response: make(chan WebSocketChanResp)}
+	wsChannel <- req
+	resp := <-req.Response
+	if resp.Err != nil {
+
+		return returnMap, resp.Err
+	}
+	returnMap = resp.Msg.(map[int][]*RSSocketConnection)
+	return returnMap, nil
 }
 
 func ExampleOfProgressUpdate(userSock *websocket.Conn) {

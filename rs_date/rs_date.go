@@ -63,3 +63,10 @@ func (d *RSDate) Value() (driver.Value, error) {
 	}
 	return d.Time.Format("2006-01-02"), nil
 }
+
+func (d *RSDate) GetLastDayOfMonth() RSDate {
+	year, month, _ := d.Date()
+	firstOfNextMonth := time.Date(year, month+1, 1, 0, 0, 0, 0, d.Location())
+	lastOfMonth := firstOfNextMonth.AddDate(0, 0, -1)
+	return RSDate{Time: lastOfMonth}
+}

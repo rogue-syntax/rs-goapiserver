@@ -66,7 +66,7 @@ const (
 	URIREQ         RouteParamSource = "URI"
 	GETREQ         RouteParamSource = "GET"
 	POSTREQ        RouteParamSource = "POST"
-	MULTIPART_FORM RouteParamSource = "MULTIPART-FROM"
+	MULTIPART_FORM RouteParamSource = "MULTIPART-FORM"
 )
 
 type RouteParam struct {

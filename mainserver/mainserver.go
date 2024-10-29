@@ -2,6 +2,8 @@ package mainserver
 
 import (
 	"fmt"
+	"math/big"
+	"math/rand"
 	"net"
 	"net/http"
 	"time"
@@ -54,12 +56,16 @@ func PanicRecovery(handler http.Handler) http.Handler {
 
 func Serve() {
 	fmt.Println("SERVING")
+
+	seed := big.NewInt(time.Now().UnixNano())
+	rand.New(rand.NewSource(seed.Int64()))
+
 	//set http config
 	httpconfig.SetHttpReqTimeout()
 	http.HandleFunc("/v1/", handler)
 
 	s := &http.Server{Addr: "0.0.0.0:9990", Handler: PanicRecovery(http.DefaultServeMux), ReadTimeout: 9600 * time.Second,
-		WriteTimeout: 9600 * time.Second}
+		WriteTimeout: 9600 * time.Second, IdleTimeout: 9600 * time.Second}
 	l, err := net.Listen("tcp4", "0.0.0.0:9990")
 	if err != nil {
 		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.ServeHttpError, W: nil})
