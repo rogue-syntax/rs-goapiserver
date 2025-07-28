@@ -115,4 +115,22 @@ const (
 	ResourceOwnershipMismatch = "RESOURCE_OWNERSHIP_MISMATCH"
 
 	ExcelPipelineError = "EXCEL_PIPELINE_ERROR"
+
+	CustomTableError = "CUSTOM_TABLE_ERROR"
+
+	DuplicateEntry = "DUPLICATE_ENTRY"
+
+	ForeignKeyConstraint = "FOREIGN_KEY_CONSTRAINT"
+
+	VerifyCustomTableError = "VERIFY_CUSTOM_TABLE_ERROR"
+
+	AddCustomTableError = "ADD_CUSTOM_TABLE_ERROR"
+
+	SQLInjectionDetected = "SQL_INJECTION_DETECTED"
+
+	InvalidSQLComparitor = "INVALID_SQL_COMPARITOR"
+
+	InvalidFieldName = "INVALID_FIELD_NAME"
+
+	QuickReportsError = "QUICK_REPORTS_ERROR"
 )

@@ -141,6 +141,7 @@ type UnixTimeMilliseconds int64
 //   - EVTypes_int
 //   - IEVAction (interface)
 type EVEvent[DATATYPE any, CONTEXTTYPE any, RETURNTYPE any] struct {
+	Co_id          int
 	Ev_id          uuid.UUID
 	Ev_type        EVTypes_int
 	Action_name    string
@@ -160,6 +161,7 @@ type EVEvent[DATATYPE any, CONTEXTTYPE any, RETURNTYPE any] struct {
 }
 
 type EVEventSerial struct {
+	Co_id         int
 	Ev_id         uuid.UUID
 	Ev_type       EVTypes_int
 	Action_name   string
@@ -190,7 +192,8 @@ type EVEventSerial struct {
 //   - mapKey: the key to map the event to
 //   - scheduleType: the type of schedule for the event
 //   - req_id: the request id for the event
-func (e *EVEvent[DATATYPE, CONTEXTTYPE, RETURNTYPE]) SetEVEvent(action IEVAction[DATATYPE, RETURNTYPE], data *DATATYPE, metaData *CONTEXTTYPE, mapKey EVTypes_int, scheduleType EVScheduleTypes_int, req_id string) {
+func (e *EVEvent[DATATYPE, CONTEXTTYPE, RETURNTYPE]) SetEVEvent(co_id int, action IEVAction[DATATYPE, RETURNTYPE], data *DATATYPE, metaData *CONTEXTTYPE, mapKey EVTypes_int, scheduleType EVScheduleTypes_int, req_id string) {
+	e.Co_id = co_id
 	e.Version = EV_SCHEMA_VERSION
 	e.Action = action
 	e.Data = *data
@@ -268,13 +271,15 @@ func DoEVEventAction[DATATYPE any, CONTEXTTYPE any, RETURNTYPE any](e *EVEvent[D
 	if err != nil {
 		e.Success = false
 		e.ErrMsg = err.Error()
-		evError.ActionError = errors.Wrap(err, ERRORFLAG_ACTION)
+		evError.ActionError = err
+		return res, evError
 	} else {
 		//action was succesful!
 		e.Success = true
 	}
 	//stream the event
 	eInterface := &SerializableEvent{
+		Co_id:       e.Co_id,
 		Ev_id:       e.Ev_id,
 		Ev_type:     e.Ev_type,
 		Action_name: e.Action_name,
@@ -289,15 +294,16 @@ func DoEVEventAction[DATATYPE any, CONTEXTTYPE any, RETURNTYPE any](e *EVEvent[D
 		Req_id:      e.Req_id,
 		Attempt:     e.Attempt,
 	}
+	var err1 error
 	if e.Event_streamer != nil {
 		//fmt.Println("found_injected_streamer")
-		err = (*e.Event_streamer).StreamEV(eInterface)
+		err1 = (*e.Event_streamer).StreamEV(eInterface)
 	} else {
 		//fmt.Println("using default streamer")
-		err = StreamEV(eInterface)
+		err1 = StreamEV(eInterface)
 	}
-	if err != nil {
-		err2 := errors.Wrap(err, ERRORFLAG_STREAM_EVENT_1)
+	if err1 != nil {
+		err2 := errors.Wrap(err1, ERRORFLAG_STREAM_EVENT_1)
 		evError.StreamError = err2
 	}
 	err = StoreEV(eInterface)
@@ -352,7 +358,7 @@ func AnExample() {
 
 	//set it with the action we want it to execute, the data it needs, any metadata, and the key to map it to
 	//
-	update_aTestDataType_event.SetEVEvent(ST_UPDATE_FUND{}, &td, &metadata, UPDATE_TEST_DATA, IMMEDIATE_ACTION, NO_REQUEST_ID)
+	update_aTestDataType_event.SetEVEvent(0, ST_UPDATE_FUND{}, &td, &metadata, UPDATE_TEST_DATA, IMMEDIATE_ACTION, NO_REQUEST_ID)
 
 	//Call the event to execute directly with DoEVEventAction
 	DoEVEventAction[ATestDataType, NoMetaData](&update_aTestDataType_event)
@@ -460,8 +466,9 @@ func StoreEV(e *SerializableEvent) error {
 	}
 
 	_, err = DBCONN.Exec(`
-			INSERT INTO EVEvents (Ev_id, Ev_type, Action_name, Data, MetaData, CalledAt, Timestamp, Date_time, Success, Version, ErrMsg, Req_id, Attempt, Schedule_type)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)`,
+			INSERT INTO EVEvents (Co_id, Ev_id, Ev_type, Action_name, Data, MetaData, CalledAt, Timestamp, Date_time, Success, Version, ErrMsg, Req_id, Attempt, Schedule_type)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)`,
+		e.Co_id,
 		e.Ev_id,
 		e.Ev_type,
 		e.Action_name,
@@ -489,6 +496,7 @@ func streamEVEvent(ev EVEvent[interface{}, interface{}, interface{}]) error {
 
 var SQL string = `
 CREATE TABLE EVEvents (
+	Co_id int(11) UNSIGNED NOT NULL DEFAULT 0,
     Ev_id char(36),
 	Ev_type INT,
 	Action_name CHAR(100),

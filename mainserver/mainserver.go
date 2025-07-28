@@ -72,3 +72,15 @@ func Serve() {
 	}
 	s.Serve(l)
 }
+
+type RunFlag string
+
+const (
+	DEBUG            RunFlag = "debug"
+	DEBUG_WEBSOCKETS RunFlag = "debug_websockets"
+)
+
+var RunFlagsMap = map[RunFlag]bool{
+	DEBUG:            false,
+	DEBUG_WEBSOCKETS: false,
+}

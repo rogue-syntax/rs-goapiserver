@@ -97,3 +97,20 @@ func CheckS3BucketExists(namer string) (bool, error) {
 		return found, nil
 	}
 }
+
+func DeleteFileFromS3(bucketKey string, fileKey string) error {
+	exists, err := CheckS3BucketExists(bucketKey)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return errors.New("bucket does not exist")
+	}
+
+	err = minioClient.RemoveObject(context.Background(), bucketKey, fileKey, minio.RemoveObjectOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}

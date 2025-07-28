@@ -467,8 +467,8 @@ func VerifyRequest(ctx context.Context, routeString string, authMode string, w h
 		return ctx, errx
 	} else {
 		ctx, err := VerifyWithCookie(ctx, routeString, w, r)
-		errx := errors.Wrap(err, apierrorkeys.AuthorizationError)
-		return ctx, errx
+		//errx := errors.Wrap(err, apierrorkeys.AuthorizationError)
+		return ctx, err
 	}
 }
 

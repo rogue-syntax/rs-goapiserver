@@ -237,19 +237,30 @@ func InitAPIErrorHandlers(customReqLogHandler RequestLogStreamer, customErrorLog
 /*
 HandleError
 Logs the error and its message to logger system, gives the ReturnError to ApiJSONReturn to give back to the client / frontend
+PLEASE SUPPLY DO_NOT_LOG_ERROR FOR THE msg PARAM IF YOU DO NOT WANT TO LOG THE ERROR IN THE SYSTEM!
 -	ReturnError.Data should be nil or an object ref to serialize
 -	ReturnError.Msg should be a const error code i.e. AUTHORIZATION_ERROR to inform client of necessary response to take
 */
+
+const (
+	DO_NOT_LOG_ERROR = "do_not_log_error"
+)
+
 func HandleError(r *http.Request, err error, msg string, returnError *ReturnError) {
 
-	errorStr := ErrorLogCallbacks.ErrorHandlerImpl.Write(err, msg, r)
-	ErrorLogCallbacks.ErrorHandlerImpl.Stream(err, msg, errorStr, r)
+	if msg != DO_NOT_LOG_ERROR {
+		if err == nil {
+			err = errors.Wrap(errors.New(msg), msg)
+		}
+		errorStr := ErrorLogCallbacks.ErrorHandlerImpl.Write(err, msg, r)
+		ErrorLogCallbacks.ErrorHandlerImpl.Stream(err, msg, errorStr, r)
 
-	if r != nil {
-		rsLog, _ := rs_go_requestlogger.CtxGetRSLogger(r.Context())
-		rsLog.ErrorLogs = append(rsLog.ErrorLogs, err.Error())
-		ctx := rs_go_requestlogger.CtxWithRSLogger(r.Context(), rsLog)
-		r.WithContext(ctx)
+		if r != nil {
+			rsLog, _ := rs_go_requestlogger.CtxGetRSLogger(r.Context())
+			rsLog.ErrorLogs = append(rsLog.ErrorLogs, err.Error())
+			ctx := rs_go_requestlogger.CtxWithRSLogger(r.Context(), rsLog)
+			r.WithContext(ctx)
+		}
 	}
 
 	if returnError != nil {
@@ -274,4 +285,10 @@ type QueryError struct {
 	QueryString string
 	QueryError  string
 	Values      []interface{}
+}
+
+func StackTrace(errp *error) {
+	if *errp != nil {
+		*errp = errors.WithStack(*errp)
+	}
 }

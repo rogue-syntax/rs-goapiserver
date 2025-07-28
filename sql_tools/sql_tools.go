@@ -1,11 +1,14 @@
 package sql_tools
 
 import (
+	"database/sql"
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
 	"github.com/rogue-syntax/rs-goapiserver/apierrors"
 	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
@@ -177,7 +180,7 @@ func CreateInsertStatement(data interface{}, tableName string, excludeFields []s
 	return insertStmt, values, nil
 }
 
-type Comparitor string
+type Comparitor = string
 
 const (
 	Equal            Comparitor = "="
@@ -190,6 +193,17 @@ const (
 	NotLike          Comparitor = "NOT LIKE"
 )
 
+var ComparitorMap = map[string]Comparitor{
+	"=":        Equal,
+	"!=":       NotEqual,
+	">":        GreaterThan,
+	"<":        LessThan,
+	">=":       GreaterThanEqual,
+	"<=":       LessThanEqual,
+	"LIKE":     Like,
+	"NOT LIKE": NotLike,
+}
+
 type AndOr string
 
 const (
@@ -197,11 +211,31 @@ const (
 	Or  AndOr = "OR"
 )
 
+var AndOrMap = map[string]AndOr{
+	"AND": And,
+	"OR":  Or,
+}
+
 type SimpleQueryComparison struct {
 	AndOr      AndOr
 	Field      string
-	Value      string
+	Value      interface{}
 	Comparator Comparitor
+}
+
+func SafeFromInjection(comparisons []SimpleQueryComparison, allowedFields []string) bool {
+	// Check for SQL injection in the comparisons
+	for _, comp := range comparisons {
+		//check if comp.AndOr is valid
+		if _, ok := AndOrMap[string(comp.AndOr)]; !ok {
+			return false
+		}
+		// Validate field against allowed fields
+		if !slices.Contains(allowedFields, comp.Field) {
+			return false
+		}
+	}
+	return true
 }
 
 // return bool if string is taken in a table
@@ -222,18 +256,24 @@ func IsStringTaken(table string, value string, field string, constraints []Simpl
 
 	if constraints != nil && len(constraints) > 0 {
 		for i := 0; i < len(constraints); i++ {
-			//EMPTY STRING CHECK
-			if strings.TrimSpace(constraints[i].Value) != "" {
+			// Check if value is a string
+			if strValue, ok := constraints[i].Value.(string); ok {
+				// EMPTY STRING CHECK
+				if strings.TrimSpace(strValue) != "" {
+					qStr += " " + string(constraints[i].AndOr) + " " + constraints[i].Field + " " + string(constraints[i].Comparator) + " ? "
+					valuesSli = append(valuesSli, strValue)
+				}
+			} else {
+				// Handle non-string values
 				qStr += " " + string(constraints[i].AndOr) + " " + constraints[i].Field + " " + string(constraints[i].Comparator) + " ? "
 				valuesSli = append(valuesSli, constraints[i].Value)
 			}
-
 		}
 	}
 	qStr += ";"
 	err := database.DB.Get(&count, qStr, valuesSli...)
-	logme := apierrors.NewLogError(apierrorkeys.DBQueryError, apierrors.LogJsonArray(qStr, table, value, valuesSli, field))
-	fmt.Println(logme)
+	//logme := apierrors.NewLogError(apierrorkeys.DBQueryError, apierrors.LogJsonArray(qStr, table, value, valuesSli, field))
+	//fmt.Println(qStr)
 	if err != nil {
 		jsonError := apierrors.LogJsonArray(qStr, table, value, field)
 		return false, errors.Wrap(err, apierrors.NewLogError(apierrorkeys.DBQueryError, jsonError))
@@ -272,6 +312,7 @@ var MYSQL_COMMANDS = []string{
 	"SAVEPOINT", "RELEASE SAVEPOINT", "SET TRANSACTION", "GRANT", "REVOKE",
 }
 
+// returns true if the string contains a SQL injection pattern
 func CheckForSQLInjection(s string) bool {
 	// Check for common SQL injection patterns
 	sqlInjectionPatterns := []string{
@@ -352,4 +393,75 @@ func MakeTableQuery(baseQuery string, uniqueIds []UniqueId, tableParams *TablePa
 	}
 
 	return qStr, valuesSli, nil
+}
+
+// Check if the error is a duplicate entry error
+// Provide the original error for system logging and the API error for the client,
+// returns mutated versions of these or the original depending on if its one of the errors in the MariaDB_Errors map
+func CheckMysqlErrors(apiError string, err error) (string, error) {
+	var newErr error
+	// Check if the error is a MySQL error
+	if mysqlErr, ok := err.(*mysql.MySQLError); ok {
+		// Check if the error code in the MariaDB_Errors map
+		if msg, ok := MariaDB_Errors[mysqlErr.Number]; ok {
+			newErr = errors.Wrap(err, msg)
+			return msg, newErr
+		} else {
+			return apiError, err
+		}
+	}
+	return apiError, err
+}
+
+var MariaDB_Errors = map[uint16]string{
+	1062: apierrorkeys.DuplicateEntry,
+	1452: apierrorkeys.ForeignKeyConstraint,
+}
+
+func DeferTxRollbackOnPanic(tx *sql.Tx) {
+	if p := recover(); p != nil {
+		tx.Rollback()
+		panic(p)
+	}
+}
+
+// ComparisonSanitizeAndValidate checks for SQL injection, valid comparators, and valid field names using generics.
+func ComparisonSanitizeAndValidate[T any](comparisons []SimpleQueryComparison) error {
+	var t T
+	tType := reflect.TypeOf(t)
+	if tType.Kind() == reflect.Ptr {
+		tType = tType.Elem()
+	}
+	for _, comp := range comparisons {
+		// Sanitize the Value
+		if strValue, ok := comp.Value.(string); ok {
+			if CheckForSQLInjection(strValue) {
+				return errors.New(apierrorkeys.SQLInjectionDetected)
+			}
+		}
+		// Validate Comparator
+		if _, ok := ComparitorMap[string(comp.Comparator)]; !ok {
+			return errors.New(apierrorkeys.InvalidSQLComparitor)
+		}
+		// Validate AndOr
+		if _, ok := AndOrMap[string(comp.AndOr)]; !ok {
+			return errors.New(apierrorkeys.InvalidSQLComparitor)
+		}
+		// Validate Field name using reflection on the provided struct type
+		if _, ok := tType.FieldByName(comp.Field); !ok {
+			return errors.New(apierrorkeys.InvalidFieldName)
+		}
+	}
+	return nil
+}
+
+func InjectComparisonsToQuery(comparisons []SimpleQueryComparison, qStr string, qParams []interface{}) (string, []interface{}) {
+	for _, comp := range comparisons {
+		qStr += fmt.Sprintf(` %s %s %s ?`, comp.AndOr, comp.Field, comp.Comparator)
+		if comp.Comparator == Like {
+			comp.Value = fmt.Sprintf(`%s%s%s`, "%", comp.Value, "%")
+		}
+		qParams = append(qParams, comp.Value)
+	}
+	return qStr, qParams
 }

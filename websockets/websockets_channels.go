@@ -207,9 +207,7 @@ func listenOnWebSocket(conn *RSSocketConnection, usr_id int, incomingMsgChannel 
 			logEventProvider.LogMessage(err, string(SocketEventUnmarshal), nil)
 			continue
 		}
-		fmt.Println("Incoming Messgage")
 		if cbFunc, ok := WSCallbacks[socketEvent.EventName]; ok {
-			fmt.Println("Handling Incoming Message")
 			cbFunc(&IncomingSocketEvent{User_id: usr_id, SocketEvent: socketEvent, Conn_id: conn.Conn_id})
 		}
 		//incomingMsgChannel <- IncomingSocketEvent{User_id: usr_id, SocketEvent: socketEvent}
