@@ -133,4 +133,6 @@ const (
 	InvalidFieldName = "INVALID_FIELD_NAME"
 
 	QuickReportsError = "QUICK_REPORTS_ERROR"
+
+	MinioPresignedURLCreationError = "MINIO_PRESIGNED_URL_CREATION_ERROR"
 )

@@ -6,9 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/rogue-syntax/rs-goapiserver/apierrors"
@@ -50,10 +47,10 @@ func PanicRecovery(handler http.Handler) http.Handler {
 	})
 }
 
-func Serve() (context.Context, *http.ServeMux) {
+func Serve(mux *http.ServeMux, root context.Context) (context.Context, *http.ServeMux) {
 
-	root, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	//root, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	//defer stop()
 
 	// Global HTTP timeouts/config
 	httpconfig.SetHttpReqTimeout()
@@ -70,7 +67,7 @@ func Serve() (context.Context, *http.ServeMux) {
 		}
 	}()
 
-	mux := http.NewServeMux()
+	//mux := http.NewServeMux()
 	mux.HandleFunc("/v1/", handler)
 
 	srv := &http.Server{

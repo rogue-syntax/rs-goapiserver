@@ -71,11 +71,7 @@ func connectGDBTLS(ctx context.Context) error {
 	db.SetMaxOpenConns(100)
 	db.SetConnMaxLifetime(1 * time.Minute)
 	DB = db
-	// Check if the connection is alive
-	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
-		return err
-	}
+
 	// Close the pool when root is canceled
 	go func() {
 		<-ctx.Done()
@@ -101,11 +97,7 @@ func connectGDB(ctx context.Context) error {
 	db.SetMaxOpenConns(100)
 	db.SetConnMaxLifetime(1 * time.Minute)
 	DB = db
-	// Check if the connection is alive
-	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
-		return err
-	}
+
 	// Close the pool when root is canceled
 	go func() {
 		<-ctx.Done()

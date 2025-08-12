@@ -73,7 +73,7 @@ type EventualHandler func(http.ResponseWriter, *http.Request, context.Context)
 //   - example : RouteHandler("/v1/someRoute", SomeFunction, [] )
 func RouteHandler(routeString string, reqHandler EventualHandler, mwList *[]RequestMiddleware) {
 	mux.HandleFunc(routeString, func(w http.ResponseWriter, r *http.Request) {
-		reqCtx := context.Background()
+		reqCtx := r.Context()
 		//LOG REQUEST HERE
 		var rSRequestLogger rs_go_requestlogger.RSRequestLogger
 		rSRequestLogger.Endpoint = routeString
