@@ -49,6 +49,12 @@ import (
 
 */
 
+var mux *http.ServeMux
+
+func InitMux(m *http.ServeMux) {
+	mux = m
+}
+
 const (
 	AUTH_MODE_KEY = "auth-mode"
 )
@@ -66,7 +72,7 @@ type EventualHandler func(http.ResponseWriter, *http.Request, context.Context)
 //   - passes a requestContext though these middleware functions, carryting a context object through to our requesthandlers
 //   - example : RouteHandler("/v1/someRoute", SomeFunction, [] )
 func RouteHandler(routeString string, reqHandler EventualHandler, mwList *[]RequestMiddleware) {
-	http.HandleFunc(routeString, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(routeString, func(w http.ResponseWriter, r *http.Request) {
 		reqCtx := context.Background()
 		//LOG REQUEST HERE
 		var rSRequestLogger rs_go_requestlogger.RSRequestLogger

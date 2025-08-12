@@ -2,7 +2,6 @@ module github.com/rogue-syntax/rs-goapiserver
 
 go 1.20
 
-
 replace github.com/rogue-syntax/rs_zerolog v1.0.0 => /home/fremont0/rs_zerolog/rs_zerolog
 
 require (
@@ -10,7 +9,7 @@ require (
 	golang.org/x/crypto v0.14.0
 )
 
-require github.com/google/uuid v1.3.0 // indirect
+require github.com/google/uuid v1.3.0
 
 require (
 	github.com/gorilla/websocket v1.5.0
@@ -21,7 +20,6 @@ require (
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/go-chi/chi/v5 v5.0.8 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
@@ -43,6 +41,7 @@ require (
 )
 
 require (
+	github.com/gabriel-vasile/mimetype v1.4.3
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/mailgun/mailgun-go/v4 v4.12.0
 	github.com/minio/minio-go/v7 v7.0.61

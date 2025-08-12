@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -29,7 +30,7 @@ var DB *sqlx.DB
 refactor this so that tsl conf is created baed on env outside of db
 so wr can do tls setupd for minio and other things also
 */
-func StartDB() error {
+func StartDB(ctx context.Context) error {
 	//connect to db with tls / ssl if not dev env
 	if global.EnvVars.DBTLS {
 		tlsConf, err := tls.CreateTLSConf()
@@ -40,12 +41,12 @@ func StartDB() error {
 		if err != nil {
 			return err
 		}
-		err = connectGDBTLS()
+		err = connectGDBTLS(ctx)
 		if err != nil {
 			return err
 		}
 	} else {
-		err := connectGDB()
+		err := connectGDB(ctx)
 		if err != nil {
 			return err
 		}
@@ -54,8 +55,8 @@ func StartDB() error {
 	return nil
 }
 
-func connectGDBTLS() error {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?tls=custom&parseTime=true",
+func connectGDBTLS(ctx context.Context) error {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?tls=custom",
 		global.EnvVars.DbserverUser,
 		global.EnvVars.DbserverPW,
 		global.EnvVars.Dbserver,
@@ -70,12 +71,22 @@ func connectGDBTLS() error {
 	db.SetMaxOpenConns(100)
 	db.SetConnMaxLifetime(1 * time.Minute)
 	DB = db
+	// Check if the connection is alive
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return err
+	}
+	// Close the pool when root is canceled
+	go func() {
+		<-ctx.Done()
+		_ = DB.Close()
+	}()
 	//defer db.Close()
 	return nil
 }
 
-func connectGDB() error {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
+func connectGDB(ctx context.Context) error {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
 		global.EnvVars.DbserverUser,
 		global.EnvVars.DbserverPW,
 		global.EnvVars.Dbserver,
@@ -90,7 +101,16 @@ func connectGDB() error {
 	db.SetMaxOpenConns(100)
 	db.SetConnMaxLifetime(1 * time.Minute)
 	DB = db
-	//defer db.Close()
+	// Check if the connection is alive
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return err
+	}
+	// Close the pool when root is canceled
+	go func() {
+		<-ctx.Done()
+		_ = DB.Close()
+	}()
 	return nil
 }
 

@@ -420,7 +420,7 @@ func VerifyWithCookie(ctx context.Context, routeString string, w http.ResponseWr
 	apiKey := ""
 	cookie, cookErr := r.Cookie("kbxs")
 	if cookErr != nil {
-		err := errors.New(apierrorkeys.AuthorizationError)
+		err := errors.WithStack(cookErr)
 		return ctx, err
 	} else {
 		//cookie found

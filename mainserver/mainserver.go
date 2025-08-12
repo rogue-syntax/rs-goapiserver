@@ -1,18 +1,20 @@
 package mainserver
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"math/big"
-	"math/rand"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"github.com/rogue-syntax/rs-goapiserver/apierrors"
 
 	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
+	"github.com/rogue-syntax/rs-goapiserver/database"
 
 	"runtime/debug"
 
@@ -34,12 +36,6 @@ func PanicRecovery(handler http.Handler) http.Handler {
 		rw.Header().Set("Access-Control-Allow-Origin", "https://"+global.EnvVars.Apiserver+"")
 		rw.Header().Set("Access-Control-Allow-Headers", "Content-Type,access-control-allow-origin, access-control-allow-headers")
 
-		//start db conection to mariadb server : database.DB
-		//err := database.StartDB()
-		//if err != nil {
-		//	apierrors.HandleError(nil, err, apierrorkeys.AppInitErr, &apierrors.ReturnError{Msg: apierrorkeys.AppInitErr, W: nil})
-		//}
-
 		defer func() {
 			if err := recover(); err != nil {
 				valStr := fmt.Sprint(err)
@@ -54,33 +50,76 @@ func PanicRecovery(handler http.Handler) http.Handler {
 	})
 }
 
-func Serve() {
-	fmt.Println("SERVING")
+func Serve() (context.Context, *http.ServeMux) {
 
-	seed := big.NewInt(time.Now().UnixNano())
-	rand.New(rand.NewSource(seed.Int64()))
+	root, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	//set http config
+	// Global HTTP timeouts/config
 	httpconfig.SetHttpReqTimeout()
-	http.HandleFunc("/v1/", handler)
 
-	s := &http.Server{Addr: "0.0.0.0:9990", Handler: PanicRecovery(http.DefaultServeMux), ReadTimeout: 9600 * time.Second,
-		WriteTimeout: 9600 * time.Second, IdleTimeout: 9600 * time.Second}
-	l, err := net.Listen("tcp4", "0.0.0.0:9990")
+	// Start DB ONCE at startup, close on shutdown
+	if err := database.StartDB(root); err != nil {
+		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.SendMailError, W: nil})
+		return root, nil
+	}
+	defer func() {
+		// If you have a Close() or Stop() in your database pkg, call it here.
+		if closer, ok := interface{}(database.DB).(interface{ Close() error }); ok && database.DB != nil {
+			_ = closer.Close()
+		}
+	}()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/", handler)
+
+	srv := &http.Server{
+		Addr:    "0.0.0.0:9990",
+		Handler: PanicRecovery(mux),
+		// Reasonable timeouts (9600s is… a lot)
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		// Inherit root context so every request gets canceled on shutdown
+		BaseContext: func(net.Listener) context.Context { return root },
+	}
+
+	ln, err := net.Listen("tcp4", srv.Addr)
 	if err != nil {
 		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.ServeHttpError, W: nil})
+		return root, nil
 	}
-	s.Serve(l)
-}
 
-type RunFlag string
+	// Run the server
+	serverErr := make(chan error, 1)
+	go func() {
+		// When Shutdown begins, Serve returns http.ErrServerClosed – not an error
+		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+			return
+		}
+		serverErr <- nil
+	}()
 
-const (
-	DEBUG            RunFlag = "debug"
-	DEBUG_WEBSOCKETS RunFlag = "debug_websockets"
-)
+	// Wait for signal or server error
+	select {
+	case <-root.Done():
+		// graceful shutdown
+	case err := <-serverErr:
+		if err != nil {
+			apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.ServeHttpError, W: nil})
+		}
+	}
 
-var RunFlagsMap = map[RunFlag]bool{
-	DEBUG:            false,
-	DEBUG_WEBSOCKETS: false,
+	// Give in-flight requests time to finish
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		// Force-close if graceful shutdown times out
+		_ = srv.Close()
+	}
+
+	return root, mux
 }
