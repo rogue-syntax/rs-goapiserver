@@ -135,4 +135,6 @@ const (
 	QuickReportsError = "QUICK_REPORTS_ERROR"
 
 	MinioPresignedURLCreationError = "MINIO_PRESIGNED_URL_CREATION_ERROR"
+
+	CacheReadError = "CACHE_READ_ERROR"
 )

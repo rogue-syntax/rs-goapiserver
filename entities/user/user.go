@@ -1,6 +1,7 @@
 package user
 
 import (
+	"github.com/pkg/errors"
 	"github.com/rogue-syntax/rs-goapiserver/database"
 )
 
@@ -18,6 +19,7 @@ type UserInternal struct {
 	Kyc_aml_id         string
 	User_phone         string
 	User_role_id       *int
+	Role_name          string
 }
 
 type UserExternal struct {
@@ -33,13 +35,14 @@ type UserExternal struct {
 	Kyc_aml_id         string
 	User_phone         string
 	User_role_id       *int
+	Role_name          string
 }
 
 func FindUserInternalByEmail(email_value string) (*UserInternal, error) {
 	var err error
 	var usr UserInternal
 	err = database.DB.Get(&usr, "SELECT * FROM UserInternal WHERE email_value = ?", email_value)
-	return &usr, err
+	return &usr, errors.WithStack(err)
 }
 
 func FindUserInternalByUser_id(user_id int) (*UserInternal, error) {
@@ -76,5 +79,7 @@ func UserInternalExternal(ui *UserInternal, ux *UserExternal) *UserExternal {
 	(*ux).Kyc_aml_status = (*ui).Kyc_aml_status
 	(*ux).Kyc_aml_date = (*ui).Kyc_aml_date
 	(*ux).User_phone = (*ui).User_phone
+	(*ux).User_role_id = (*ui).User_role_id
+	(*ux).Role_name = (*ui).Role_name
 	return ux
 }
