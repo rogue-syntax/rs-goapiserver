@@ -23,4 +23,6 @@ var BaseAppRoutes = []middleware.RouteDef{
 	{RouteStr: "/v1/testWS/", HandlerFunc: websockets.TestWS, MiddlewareSli: &middleware.ReqVerifMiddleware},
 	{RouteStr: "/ws/wss/", HandlerFunc: websockets.WsEndpoint, MiddlewareSli: &middleware.ReqVerifMiddleware},
 	{RouteStr: "/v1/test/genApiKey", HandlerFunc: authentication.Handler_GenApiKey, MiddlewareSli: &middleware.ReqVerifMiddleware},
+	////"/v1/signup/pw-verif-ep" WVerifEP_handler PWVerifEP_handler_ApiReq
+	{RouteStr: "/v1/signup/pwVerifEp", HandlerFunc: signup.PWVerifEP_handler, MiddlewareSli: &middleware.BlankMiddleware, ReqDef: &signup.PWVerifEP_handler_ApiReq},
 }

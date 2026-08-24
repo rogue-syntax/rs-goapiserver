@@ -13,11 +13,13 @@ const (
 	LogGenError    = "LOG_GEN_ERROR"
 
 	// Authentication
-	AuthorizationError = "AUTH_ERROR"
-	MiddlewareError    = "MIDDLEWARE_ERROR"
-	SessionExpired     = "SESSION_EXPIRED"
-	APIKeyNotFound     = "API_KEY_NOT_FOUND"
-	AuthHeaderNotFound = "AUTH_HEADER_NOT_FOUND"
+	AuthorizationError            = "AUTH_ERROR"
+	MiddlewareError               = "MIDDLEWARE_ERROR"
+	SessionExpired                = "SESSION_EXPIRED"
+	APIKeyNotFound                = "API_KEY_NOT_FOUND"
+	AuthHeaderNotFound            = "AUTH_HEADER_NOT_FOUND"
+	SessionNotFound               = "SESSION_NOT_FOUND"
+	CannotTerminateCurrentSession = "CANNOT_TERMINATE_CURRENT_SESSION"
 
 	//Account
 	AccountError                 = "ACCOUNT_ERROR"
@@ -137,4 +139,8 @@ const (
 	MinioPresignedURLCreationError = "MINIO_PRESIGNED_URL_CREATION_ERROR"
 
 	CacheReadError = "CACHE_READ_ERROR"
+
+	InvalidDisplayType = "INVALID_DISPLAY_TYPE"
+
+	DataPointKeyTaken = "DATA_POINT_KEY_TAKEN"
 )

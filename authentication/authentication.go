@@ -3,7 +3,7 @@ package authentication
 import (
 	"context"
 	"crypto/rand"
-	"fmt"
+	"database/sql"
 
 	"encoding/hex"
 	"net/http"
@@ -20,7 +20,6 @@ import (
 	"github.com/rogue-syntax/rs-goapiserver/database"
 	"github.com/rogue-syntax/rs-goapiserver/entities/user"
 	"github.com/rogue-syntax/rs-goapiserver/global"
-	"github.com/rogue-syntax/rs-goapiserver/routeroles"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -63,6 +62,24 @@ type UserSession struct {
 	User_agent   string
 	User_ip_4    string
 	User_ip_aton uint32
+}
+
+// Session context methods
+type sessionKeyType string
+
+const sessionKey sessionKeyType = "session"
+
+func CtxWithSession(ctx context.Context, session *UserSession) context.Context {
+	return context.WithValue(ctx, sessionKey, session)
+}
+
+func CtxGetSession(ctx context.Context) (*UserSession, error) {
+	session, ok := ctx.Value(sessionKey).(*UserSession)
+	if !ok {
+		err := errors.New(apierrorkeys.ContextError)
+		return nil, err
+	}
+	return session, nil
 }
 
 func AuthenticateUser(w *http.ResponseWriter, ctx context.Context) (*user.UserExternal, error) {
@@ -298,6 +315,9 @@ func verifyUser(pw string, em string) (*user.UserInternal, error) {
 	if err != nil {
 		return usr, err
 	}
+	if usr == nil {
+		return nil, errors.New(apierrorkeys.NonexistentAccount)
+	}
 	isAuthentic, err := pwVerif(&usr.User_pw, &pw)
 	if err != nil {
 		return usr, err
@@ -407,6 +427,9 @@ func VerifyWithHeader(ctx context.Context, routeString string, w http.ResponseWr
 			return ctx, err
 		}
 		ctx, err = compareAndVerify(uSession.User_id, apiKey, uSession.Token, ctx)
+		if err == nil {
+			ctx = CtxWithSession(ctx, &uSession)
+		}
 		return ctx, err
 	} else {
 		err := errors.New(apierrorkeys.APIKeyNotFound)
@@ -417,29 +440,51 @@ func VerifyWithHeader(ctx context.Context, routeString string, w http.ResponseWr
 // Verify with cookie
 //   - Branched from VerifyRequest
 func VerifyWithCookie(ctx context.Context, routeString string, w http.ResponseWriter, r *http.Request) (context.Context, error) {
-	apiKey := ""
+	userToken := ""
 	cookie, cookErr := r.Cookie("kbxs")
 	if cookErr != nil {
 		err := errors.WithStack(cookErr)
 		return ctx, err
 	} else {
-		//cookie found
-		apiKey = cookie.Value
+		//cookie foundq
+		userToken = cookie.Value
 	}
-	uSession, err := getUserSessionForID_x_Agent(r, true)
+
+	cookie, err := r.Cookie("kbxu")
+	if err != nil {
+		return ctx, err
+	}
+	user_id, err := strconv.Atoi(cookie.Value)
+
+	tBytes, err := hex.DecodeString(userToken)
+	if err != nil {
+		return ctx, err
+	}
+	hashedToken := authutil.HashTokenBytes(tBytes) //this is what were looking for
+
+	var uSession UserSession
+
+	err = database.DB.Get(&uSession, "call getUserSessionByToken(?,?)", user_id, hashedToken)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ctx, errors.WithStack(errors.New(apierrors.DO_NOT_LOG_ERROR))
+		} else {
+			return ctx, err
+		}
+	}
+	// is thie session expired
+	if int(uSession.Expires_at) < int(time.Now().Unix()) {
+		sessionErr := errors.New(apierrorkeys.SessionExpired)
+		return ctx, sessionErr
+	}
+
+	usr, err := user.FindUserExternalByUser_id(user_id)
 	if err != nil {
 		return ctx, err
 	}
 
-	ctx, err = compareAndVerify(uSession.User_id, apiKey, uSession.Token, ctx)
-	if err != nil {
-		return ctx, err
-	}
-
-	//dont reissue on every request to avoid sync issues
-	/*
-		_, err = issueToken(uSession.User_id, "", w, r)
-	*/
+	ctx = apicontext.CtxWithUser(ctx, usr)
+	ctx = CtxWithSession(ctx, &uSession)
 	return ctx, nil
 
 }
@@ -548,14 +593,4 @@ func MapSliceContains(s []int, roleId int) bool {
 		}
 	}
 	return false
-}
-
-func HasRoutePermission(roleId int, resource string) bool {
-	fmt.Printf("resource:  %s \r\n", string(resource))
-
-	if !MapSliceContains(routeroles.RouteRoles[resource], roleId) {
-		return false
-	} else {
-		return true
-	}
 }

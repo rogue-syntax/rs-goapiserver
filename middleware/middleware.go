@@ -3,7 +3,9 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"io"
+	"slices"
 
 	"net/http"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/rogue-syntax/rs-goapiserver/apicontext"
 	"github.com/rogue-syntax/rs-goapiserver/apierrors"
 	"github.com/rogue-syntax/rs-goapiserver/apimaster"
+	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
 	"github.com/rogue-syntax/rs-goapiserver/rs_go_requestlogger"
 
 	"github.com/rogue-syntax/rs-goapiserver/authentication"
@@ -71,12 +74,12 @@ type EventualHandler func(http.ResponseWriter, *http.Request, context.Context)
 //   - processes them though a slice of RequestMiddleware using its ProcessRequest function
 //   - passes a requestContext though these middleware functions, carryting a context object through to our requesthandlers
 //   - example : RouteHandler("/v1/someRoute", SomeFunction, [] )
-func RouteHandler(routeString string, reqHandler EventualHandler, mwList *[]RequestMiddleware) {
-	mux.HandleFunc(routeString, func(w http.ResponseWriter, r *http.Request) {
+func RouteHandler(def *RouteDef) {
+	mux.HandleFunc(def.RouteStr, func(w http.ResponseWriter, r *http.Request) {
 		reqCtx := r.Context()
 		//LOG REQUEST HERE
 		var rSRequestLogger rs_go_requestlogger.RSRequestLogger
-		rSRequestLogger.Endpoint = routeString
+		rSRequestLogger.Endpoint = def.RouteStr
 
 		rSRequestLogger.RequestVars.RequestURI = r.RequestURI
 		rSRequestLogger.RequestVars.Method = r.Method
@@ -115,18 +118,29 @@ func RouteHandler(routeString string, reqHandler EventualHandler, mwList *[]Requ
 		r = r.WithContext(reqCtx)
 
 		var err error
-		for i := 0; i < len(*mwList); i++ {
-			reqCtx, err = (*mwList)[i].ProcessRequest(reqCtx, routeString, w, r)
+		for i := 0; i < len(*def.MiddlewareSli); i++ {
+			reqCtx, err = (*def.MiddlewareSli)[i].ProcessRequest(reqCtx, def, w, r)
 			if err != nil {
-				apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: err.Error(), W: &w})
-				return
+				if err.Error() == apierrors.DO_NOT_LOG_ERROR {
+					//handle do not log error
+					apierrors.HandleError(nil, err, apierrors.DO_NOT_LOG_ERROR, &apierrors.ReturnError{Msg: err.Error(), W: &w})
+					return
+				} else if err == sql.ErrNoRows {
+					//handle no rows error
+					apierrors.HandleError(nil, err, apierrors.DO_NOT_LOG_ERROR, &apierrors.ReturnError{Msg: err.Error(), W: &w})
+					return
+				} else {
+
+					apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: err.Error(), W: &w})
+					return
+				}
 			}
 		}
 		//request logger on request finished
 		defer func() {
 			apierrors.HandleReqLog(r)
 		}()
-		reqHandler(w, r, reqCtx)
+		def.HandlerFunc(w, r, reqCtx)
 	})
 }
 
@@ -138,10 +152,11 @@ RouteDef: A Struct for defining routes
     containing the ProcessRequest functions that contain the middlware logic
 */
 type RouteDef struct {
-	RouteStr      string
-	HandlerFunc   EventualHandler
-	MiddlewareSli *[]RequestMiddleware
-	ReqDef        *apimaster.ApiReqDef
+	RouteStr       string
+	HandlerFunc    EventualHandler
+	MiddlewareSli  *[]RequestMiddleware
+	ReqDef         *apimaster.ApiReqDef
+	PermittedRoles []int
 }
 
 /*
@@ -161,7 +176,7 @@ func SetRouteDefs(defs *[]RouteDef, listName string) {
 	}
 	for _, def := range *defs {
 		//register the route with the middleware
-		RouteHandler(def.RouteStr, def.HandlerFunc, def.MiddlewareSli)
+		RouteHandler(&def)
 		//register the route with the apimaster api request map
 		if def.ReqDef != nil {
 			apimaster.ApiReqMap[listName][def.RouteStr] = *def.ReqDef
@@ -172,7 +187,7 @@ func SetRouteDefs(defs *[]RouteDef, listName string) {
 // Request Middleware
 // - interface for all middleware handlers
 type RequestMiddleware interface {
-	ProcessRequest(ctx context.Context, routeString string, w http.ResponseWriter, r *http.Request) (context.Context, error)
+	ProcessRequest(ctx context.Context, route *RouteDef, w http.ResponseWriter, r *http.Request) (context.Context, error)
 }
 
 // DEV MIDDLEWARE
@@ -199,13 +214,13 @@ func SetExampleMiddleware() {
 	ExampleMiddleware = []RequestMiddleware{&ExampleMiddlewareOne, &ExampleMiddlewareTwo}
 }
 
-func (ExampleMiddlewareOneType) ProcessRequest(ctx context.Context, routeString string, w http.ResponseWriter, r *http.Request) (context.Context, error) {
+func (ExampleMiddlewareOneType) ProcessRequest(ctx context.Context, route *RouteDef, w http.ResponseWriter, r *http.Request) (context.Context, error) {
 	str := "User Terry"
 	ctx = apicontext.CtxWithdevGenMsg(ctx, &str)
 	return ctx, nil
 }
 
-func (ExampleMiddlewareTwoType) ProcessRequest(ctx context.Context, routeString string, w http.ResponseWriter, r *http.Request) (context.Context, error) {
+func (ExampleMiddlewareTwoType) ProcessRequest(ctx context.Context, route *RouteDef, w http.ResponseWriter, r *http.Request) (context.Context, error) {
 	str := "User Bob"
 	ctx = apicontext.CtxWithdevGenMsg(ctx, &str)
 	return ctx, nil
@@ -222,7 +237,7 @@ var BlankMiddleware []RequestMiddleware
 func SetBlankMiddleware() {
 	BlankMiddleware = []RequestMiddleware{&BlankMW}
 }
-func (BlankMWType) ProcessRequest(ctx context.Context, routeString string, w http.ResponseWriter, r *http.Request) (context.Context, error) {
+func (BlankMWType) ProcessRequest(ctx context.Context, route *RouteDef, w http.ResponseWriter, r *http.Request) (context.Context, error) {
 	var err error
 	return ctx, err
 }
@@ -242,8 +257,8 @@ var ReqVerifMiddleware []RequestMiddleware
 func SetReqVerifMiddleware() {
 	ReqVerifMiddleware = []RequestMiddleware{&ReqVerif}
 }
-func (RequestVerifType) ProcessRequest(ctx context.Context, routeString string, w http.ResponseWriter, r *http.Request) (context.Context, error) {
-	ctx, err := authentication.VerifyRequest(ctx, routeString, r.FormValue(AUTH_MODE_KEY), w, r)
+func (RequestVerifType) ProcessRequest(ctx context.Context, route *RouteDef, w http.ResponseWriter, r *http.Request) (context.Context, error) {
+	ctx, err := authentication.VerifyRequest(ctx, route.RouteStr, r.FormValue(AUTH_MODE_KEY), w, r)
 	usr, _ := apicontext.CtxGetUser(ctx)
 	r = r.WithContext(apicontext.CtxWithUser(r.Context(), usr))
 	return ctx, err
@@ -268,10 +283,10 @@ var WebhookMiddleware []RequestMiddleware
 func SetWebhookMiddleware() {
 	WebhookMiddleware = []RequestMiddleware{&WebhookMW}
 }
-func (WebhookMWType) ProcessRequest(ctx context.Context, routeString string, w http.ResponseWriter, r *http.Request) (context.Context, error) {
+func (WebhookMWType) ProcessRequest(ctx context.Context, route *RouteDef, w http.ResponseWriter, r *http.Request) (context.Context, error) {
 	//var err error
 	//verify webhook authenticity here or at handlers?
-	//ctx, err := authentication.VerifyRequest(ctx, routeString, r.FormValue("authMode"), w, r)
+	//ctx, err := authentication.VerifyRequest(ctx, route.RouteStr, r.FormValue("authMode"), w, r)
 	return ctx, nil
 }
 
@@ -288,8 +303,8 @@ func SetRoleBaseReqVerifMiddleware() {
 	RoleBaseReqVerifMiddleware = []RequestMiddleware{&RoleBaseReqVerif}
 }
 
-func (RoleBasedRequestVerifType) ProcessRequest(ctx context.Context, routeString string, w http.ResponseWriter, r *http.Request) (context.Context, error) {
-	ctx, err := authentication.VerifyRequest(ctx, routeString, r.FormValue(AUTH_MODE_KEY), w, r)
+func (RoleBasedRequestVerifType) ProcessRequest(ctx context.Context, route *RouteDef, w http.ResponseWriter, r *http.Request) (context.Context, error) {
+	ctx, err := authentication.VerifyRequest(ctx, route.RouteStr, r.FormValue(AUTH_MODE_KEY), w, r)
 	if err != nil {
 		return ctx, err
 	}
@@ -299,9 +314,9 @@ func (RoleBasedRequestVerifType) ProcessRequest(ctx context.Context, routeString
 		return ctx, err
 	}
 
-	hasPermission := authentication.HasRoutePermission(*usr.User_role_id, routeString)
+	hasPermission := slices.Contains(route.PermittedRoles, *usr.User_role_id)
 	if hasPermission != true {
-		err = errors.New("User not authenticated for this route")
+		err = errors.WithStack(errors.New(apierrorkeys.AuthorizationError))
 	}
 	return ctx, err
 }

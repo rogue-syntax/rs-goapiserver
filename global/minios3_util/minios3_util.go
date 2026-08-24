@@ -98,6 +98,18 @@ func GetFileFromS3(bucketKey string, fileKey string) (*[]byte, error) {
 // the HTTP Referer header matches the given domain (e.g., *.port-trak.com).
 // Note: Referer can be spoofed or omitted by clients; for stronger control, use a proxy
 // or presigned URLs instead.
+
+func CheckS3Connection() error {
+	if minioClient == nil {
+		return errors.New("Minio client not initialized")
+	}
+	_, err := minioClient.ListBuckets(context.Background())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func ensurePublicReadPolicy(ctx context.Context, bucket string) error {
 	domain := "port-trak.com"
 	policyJSON := `{

@@ -33,6 +33,7 @@ type EnvVarsType struct {
 	TestKey              string
 	SMTPEndpoint         string
 	SMTPPort             string
+	MailFromAppName      string
 	SMTPSupportUserName  string
 	SMTPSupportUserPW    string
 	SMTPServiceAPIKey    string

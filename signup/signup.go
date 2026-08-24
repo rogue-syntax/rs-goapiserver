@@ -9,9 +9,14 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/nbutton23/zxcvbn-go"
+	"github.com/pkg/errors"
 	"github.com/rogue-syntax/rs-goapiserver/apierrors"
 	"github.com/rogue-syntax/rs-goapiserver/apimaster"
 	"github.com/rogue-syntax/rs-goapiserver/apireturn"
+	"github.com/rogue-syntax/rs-goapiserver/sql_tools"
+	"port-trak.com/main/form_verification"
+	"port-trak.com/main/rs_zxcvbn"
 
 	"github.com/rogue-syntax/rs-goapiserver/apireturn/apierrorkeys"
 	"github.com/rogue-syntax/rs-goapiserver/authentication"
@@ -133,15 +138,9 @@ func TestPWVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.C
 	fmt.Fprintf(w, isValidStr)
 }
 
-//input : PWSubmission
-/*output: PWValidationResponse
-error branches for client:
-	- PWReqNotFound : request not found or expired
-	- PWReqNotMet : pw reqs not met
-	- LoginFailed : unable to log user in
-*/
+// "/v1/signup/pw-verif-ep" WVerifEP_handler PWVerifEP_handler_ApiReq
 var PWVerifEP_handler_ApiReq apimaster.ApiReqDef = apimaster.ApiReqDef{
-	API:           "/v1/signup/pw-verif-ep",
+	API:           "/v1/signup/pwVerifEp",
 	Method:        apimaster.POSTREQ,
 	Desc:          "Password Verification Endpoint",
 	Input:         apimaster.MakeStructDescriptorMap(new(PWSubmission)),
@@ -158,83 +157,86 @@ func PWVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.Conte
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&pwSubmission)
 	if err != nil {
-		pwValidationResponse.Trace = 0
-		pwValidationResponse.ErrorMsg = err.Error()
-		pwValidationResponse.PwReqMsg = apierrorkeys.CantDecode
-		apireturn.ApiJSONReturn(pwValidationResponse, apierrorkeys.APIReqError, &w)
+		apierrors.HandleError(r, errors.WithStack(err), apierrorkeys.DBQueryError, &apierrors.ReturnError{Msg: apierrorkeys.DBQueryError, W: &w})
 		return
 	}
 	//Get current time
 	currentTime := time.Now()
 	currentTimeUnix := currentTime.Unix()
 	//Clear expired PW Verifications
-	_, err = database.DB.Exec("call clearExpiredPWVerification(?)", currentTimeUnix)
-	if err != nil {
-		pwValidationResponse.Trace = 1
-		pwValidationResponse.ErrorMsg = err.Error()
-		pwValidationResponse.PwReqMsg = apierrorkeys.APIReqError
-		apireturn.ApiJSONReturn(pwValidationResponse, apierrorkeys.APIReqError, &w)
-		return
-	}
+	/*
+		_, err = database.DB.Exec("call clearExpiredPWVerification(?)", currentTimeUnix)
+		if err != nil {
+			pwValidationResponse.Trace = 1
+			pwValidationResponse.ErrorMsg = err.Error()
+			pwValidationResponse.PwReqMsg = apierrorkeys.APIReqError
+			apireturn.ApiJSONReturn(pwValidationResponse, apierrorkeys.APIReqError, &w)
+			return
+		}
+	*/
 	//check to see if PW Verificatiopn record with supplied token exists and is not expired
 	var passwordReset PasswordReset
 	err = database.DB.Get(&passwordReset, "SELECT * FROM password_reset WHERE password_reset_token = ? AND password_reset_expires > ?;", pwSubmission.PwToken, currentTimeUnix)
 	//err = database.DB.Get(&passwordReset, "SELECT * FROM main.password_reset WHERE password_reset_token = ? ;", pwSubmission.PwToken)
 	if err != nil {
-		pwValidationResponse.Trace = 2
-		pwValidationResponse.ErrorMsg = err.Error()
-		pwValidationResponse.PwReqMsg = pwSubmission.PwToken
-		apireturn.ApiJSONReturn(pwValidationResponse, apierrorkeys.APIReqError, &w)
+		apierrors.HandleError(r, errors.WithStack(err), apierrorkeys.DBQueryError, &apierrors.ReturnError{Msg: apierrorkeys.DBQueryError, W: &w})
 		return
 	}
 	if *passwordReset.Password_reset_token == "" {
-		pwValidationResponse.Trace = 3
-		pwValidationResponse.ErrorMsg = "Password reset record expired or not found"
-		pwValidationResponse.PwReqMsg = apierrorkeys.PWReqNotFound
-		apireturn.ApiJSONReturn(pwValidationResponse, apierrorkeys.APIReqError, &w)
+		apierrors.HandleError(r, errors.New(apierrorkeys.PWReqNotFound), apierrorkeys.PWReqNotFound, &apierrors.ReturnError{Msg: apierrorkeys.PWReqNotFound, W: &w})
 		return
 	}
+
+	if pwSubmission.NewUser == false && pwSubmission.NewPw == "" {
+		//return sucess
+		pwValidationResponse.IsValid = true
+		pwValidationResponse.PwToken = *passwordReset.Password_reset_token
+		pwValidationResponse.ErrorMsg = ""
+		apireturn.ApiJSONReturn(pwValidationResponse, apierrorkeys.NOError, &w)
+		return
+	}
+
 	//password req check
-	isValid := pwIsValid(pwSubmission.NewPw)
-	if isValid == false {
-		pwValidationResponse.Trace = 4
-		pwValidationResponse.ErrorMsg = "Password does not meet requirements"
-		pwValidationResponse.PwReqMsg = apierrorkeys.PWReqNotMet
-		apireturn.ApiJSONReturn(pwValidationResponse, apierrorkeys.APIReqError, &w)
+	//isValid := pwIsValid(pwSubmission.NewPw)\
+	trimmedPW, err := form_verification.TrimAndVerifyString(pwSubmission.NewPw, form_verification.NO_RULESET)
+	if err != nil {
+		apierrors.HandleError(r, errors.WithStack(err), apierrorkeys.PWReqNotMet, &apierrors.ReturnError{Msg: apierrorkeys.PWReqNotMet, W: &w})
 		return
 	}
+	isNotSafe := sql_tools.CheckForSQLInjection(trimmedPW)
+	if isNotSafe {
+		apierrors.HandleError(r, errors.New(apierrorkeys.PWReqNotMet), apierrors.DO_NOT_LOG_ERROR, &apierrors.ReturnError{Msg: apierrorkeys.PWReqNotMet, W: &w})
+		return
+	}
+	pwStrength := zxcvbn.PasswordStrength(trimmedPW, []string{})
+	if pwStrength.Score < rs_zxcvbn.MIN_PW_STRENGTH_SCORE {
+		apierrors.HandleError(r, errors.New(apierrorkeys.PWReqNotMet), apierrors.DO_NOT_LOG_ERROR, &apierrors.ReturnError{Msg: apierrorkeys.PWReqNotMet, W: &w})
+		return
+	}
+
 	//generate pw hash
-	pwHash, err := authutil.GeneratePW(pwSubmission.NewPw)
+	pwHash, err := authutil.GeneratePW(trimmedPW)
 	if err != nil {
-		pwValidationResponse.Trace = 5
-		pwValidationResponse.ErrorMsg = err.Error()
-		pwValidationResponse.PwReqMsg = apierrorkeys.APIReqError
-		apireturn.ApiJSONReturn(pwValidationResponse, apierrorkeys.APIReqError, &w)
+		apierrors.HandleError(r, errors.WithStack(err), apierrorkeys.APIReqError, &apierrors.ReturnError{Msg: apierrorkeys.APIReqError, W: &w})
 		return
 	}
 	//set pw for user in db
 	_, err = database.DB.Exec("INSERT INTO user_auth (user_id, user_pw) VALUES (?, ?) ON DUPLICATE KEY UPDATE user_pw = ?;", *passwordReset.User_id, pwHash, pwHash)
 
 	if err != nil {
-		pwValidationResponse.Trace = 6
-		pwValidationResponse.ErrorMsg = err.Error()
-		pwValidationResponse.PwReqMsg = apierrorkeys.APIReqError
-		apireturn.ApiJSONReturn(pwValidationResponse, apierrorkeys.APIReqError, &w)
+		apierrors.HandleError(r, errors.WithStack(err), apierrorkeys.APIReqError, &apierrors.ReturnError{Msg: apierrorkeys.APIReqError, W: &w})
 		return
 	}
 	//pw should be in system and good to go so log user in
-	_, err = authentication.HandleAppBrowserSignIn(pwSubmission.NewPw, *passwordReset.Email_address, w, r)
+	_, err = authentication.HandleAppBrowserSignIn(trimmedPW, *passwordReset.Email_address, w, r)
 	if err != nil {
-		pwValidationResponse.Trace = 7
-		pwValidationResponse.ErrorMsg = err.Error()
-		pwValidationResponse.PwReqMsg = "" + pwSubmission.NewPw + ", " + *passwordReset.Email_address
-		apireturn.ApiJSONReturn(pwValidationResponse, apierrorkeys.APIReqError, &w)
+		apierrors.HandleError(r, errors.WithStack(err), apierrorkeys.LoginFailed, &apierrors.ReturnError{Msg: apierrorkeys.LoginFailed, W: &w})
 		return
 	}
 	//return no error response to client
-	pwValidationResponse.Trace = 8
-	pwValidationResponse.ErrorMsg = apierrorkeys.NOError
-	pwValidationResponse.PwReqMsg = apierrorkeys.NOError
+	pwValidationResponse.IsValid = true
+	pwValidationResponse.PwToken = *passwordReset.Password_reset_token
+	pwValidationResponse.ErrorMsg = ""
 	apireturn.ApiJSONReturn(pwValidationResponse, apierrorkeys.NOError, &w)
 	return
 
@@ -248,8 +250,7 @@ func EmailVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.Co
 
 	err := decoder.Decode(&tokenValidation)
 	if err != nil {
-		validationResp.Trace = 0
-		apireturn.ApiJSONReturn(validationResp, apierrorkeys.APIReqError, &w)
+		apierrors.HandleError(r, errors.Wrap(err, "failed to decode token validation"), apierrorkeys.CantDecode, &apierrors.ReturnError{Msg: apierrorkeys.CantDecode, W: &w})
 		return
 	}
 
@@ -260,9 +261,7 @@ func EmailVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.Co
 
 	_, err = database.DB.Exec("call clearExpiredEMailVerification(?)", currentTimeUnix)
 	if err != nil {
-		validationResp.Trace = 1
-		validationResp.ErrorMsg = err.Error()
-		apireturn.ApiJSONReturn(validationResp, apierrorkeys.APIReqError, &w)
+		apierrors.HandleError(r, errors.Wrap(err, "failed to clear expired email verifications"), apierrorkeys.DBQueryError, &apierrors.ReturnError{Msg: apierrorkeys.DBQueryError, W: &w})
 		return
 	}
 
@@ -270,22 +269,17 @@ func EmailVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.Co
 	err = database.DB.Select(&emailVerification, "SELECT * FROM email_verification WHERE email_verif_token = ? && email_verif_expires > ? ", tokenValidation.Token, currentTimeUnix)
 
 	if err != nil {
-		validationResp.Trace = 2
-		validationResp.ErrorMsg = err.Error()
-		apireturn.ApiJSONReturn(validationResp, apierrorkeys.APIReqError, &w)
+		apierrors.HandleError(r, errors.Wrap(err, "failed to query email verification token"), apierrorkeys.DBQueryError, &apierrors.ReturnError{Msg: apierrorkeys.DBQueryError, W: &w})
 		return
 	}
 	if len(emailVerification) == 0 {
-		validationResp.Trace = 3
-		apireturn.ApiJSONReturn(validationResp, apierrorkeys.APIReqError, &w)
+		apierrors.HandleError(r, errors.New("email verification token not found or expired"), apierrors.DO_NOT_LOG_ERROR, &apierrors.ReturnError{Msg: apierrorkeys.APIReqError, W: &w})
 		return
 	}
 
 	pwToken, _, err := authutil.MakeAuthToken()
 	if err != nil {
-		validationResp.Trace = 4
-		validationResp.ErrorMsg = err.Error()
-		apireturn.ApiJSONReturn(validationResp, apierrorkeys.APIReqError, &w)
+		apierrors.HandleError(r, errors.Wrap(err, "failed to generate authentication token"), apierrorkeys.APIReqError, &apierrors.ReturnError{Msg: apierrorkeys.APIReqError, W: &w})
 		return
 	}
 
@@ -293,8 +287,7 @@ func EmailVerifEP_handler(w http.ResponseWriter, r *http.Request, ctx context.Co
 	//createNewUserFromEmail : email:string, pwRequestTokem:string, time exp: int )
 	_, err = database.DB.Exec("call createNewUserFromEmail(?,?,?)", emailVerif.Email_address, pwToken, pwExpTimeUnix)
 	if err != nil {
-		validationResp.Trace = 5
-		apireturn.ApiJSONReturn(err.Error(), apierrorkeys.APIReqError, &w)
+		apierrors.HandleError(r, errors.Wrap(err, "failed to create new user from email"), apierrorkeys.DBQueryError, &apierrors.ReturnError{Msg: apierrorkeys.DBQueryError, W: &w})
 		return
 	}
 
@@ -315,7 +308,7 @@ func Handler_AppSignUp(w http.ResponseWriter, r *http.Request, ctx context.Conte
 
 	err := decoder.Decode(&emailSubmission)
 	if err != nil {
-		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.SystemError, W: &w})
+		apierrors.HandleError(r, errors.Wrap(err, "failed to decode email submission"), apierrorkeys.CantDecode, &apierrors.ReturnError{Msg: apierrorkeys.CantDecode, W: &w})
 		return
 	}
 
@@ -324,7 +317,7 @@ func Handler_AppSignUp(w http.ResponseWriter, r *http.Request, ctx context.Conte
 	//checkEmailUnique
 	isUnique, err := CheckEmailUnique(emailSubmission.EmailAddress)
 	if err != nil {
-		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.EmailTaken, W: &w})
+		apierrors.HandleError(r, errors.Wrap(err, "failed to check email uniqueness"), apierrorkeys.DBQueryError, &apierrors.ReturnError{Msg: apierrorkeys.DBQueryError, W: &w})
 		return
 	}
 
@@ -350,9 +343,7 @@ func Handler_AppSignUp(w http.ResponseWriter, r *http.Request, ctx context.Conte
 		// log email verif record to db
 		_, err = database.DB.Exec("INSERT INTO email_verification ( email_address, email_verif_token, email_verif_expires) VALUES ( ?,?,? );", emailSubmission.EmailAddress, token, expTimeUnix)
 		if err != nil {
-			isAvailable.Trace = 3
-			isAvailable.ErrorMsg = err.Error()
-			apireturn.ApiJSONReturn(isAvailable, apierrorkeys.APIReqError, &w)
+			apierrors.HandleError(r, errors.Wrap(err, "failed to insert email verification record"), apierrorkeys.DBQueryError, &apierrors.ReturnError{Msg: apierrorkeys.DBQueryError, W: &w})
 			return
 		}
 
@@ -360,16 +351,14 @@ func Handler_AppSignUp(w http.ResponseWriter, r *http.Request, ctx context.Conte
 		html := `<span>Welcome to ` + global.EnvVars.ServiceName + `.</span><br/><span> Please follow <a href="https://` + global.EnvVars.Apiserver + `/set-pw?token=` + token + `&verifyEmail=true&newUser=true"> >this link< </a> to verify your email address and begin your investor onboarding process!</span>`
 		emailBody, err := mail.CraftEmail(html)
 		if err != nil {
-			isAvailable.Trace = 4
-			apireturn.ApiJSONReturn(isAvailable, apierrorkeys.APIReqError, &w)
+			apierrors.HandleError(r, errors.Wrap(err, "failed to craft verification email"), apierrorkeys.APIReqError, &apierrors.ReturnError{Msg: apierrorkeys.APIReqError, W: &w})
 			return
 		}
 
 		err = mail.SendMailSingle(emailSubmission.EmailAddress, emailBody, global.EnvVars.ServiceName+" Support", global.EnvVars.SMTPSupportUserName, global.EnvVars.ServiceName+" email verification")
 		// send verification email
 		if err != nil {
-			isAvailable.Trace = 5
-			apireturn.ApiJSONReturn(isAvailable, apierrorkeys.APIReqError, &w)
+			apierrors.HandleError(r, errors.Wrap(err, "failed to send verification email"), apierrorkeys.APIReqError, &apierrors.ReturnError{Msg: apierrorkeys.APIReqError, W: &w})
 			return
 		}
 
@@ -386,7 +375,7 @@ func Handler_RequestPasswordReset(w http.ResponseWriter, r *http.Request, ctx co
 
 	err := decoder.Decode(&emailSubmission)
 	if err != nil {
-		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.SystemError, W: &w})
+		apierrors.HandleError(r, errors.Wrap(err, "failed to decode email submission"), apierrorkeys.CantDecode, &apierrors.ReturnError{Msg: apierrorkeys.CantDecode, W: &w})
 		return
 	}
 
@@ -395,7 +384,7 @@ func Handler_RequestPasswordReset(w http.ResponseWriter, r *http.Request, ctx co
 	//checkEmailUnique
 	isUnique, err := CheckEmailUnique(emailSubmission.EmailAddress)
 	if err != nil {
-		apierrors.HandleError(nil, err, err.Error(), &apierrors.ReturnError{Msg: apierrorkeys.EmailTaken, W: &w})
+		apierrors.HandleError(r, errors.Wrap(err, "failed to check email uniqueness"), apierrorkeys.DBQueryError, &apierrors.ReturnError{Msg: apierrorkeys.DBQueryError, W: &w})
 		return
 	}
 
@@ -411,8 +400,7 @@ func Handler_RequestPasswordReset(w http.ResponseWriter, r *http.Request, ctx co
 		// create token
 		token, _, err := authutil.MakeAuthToken()
 		if err != nil {
-			isAvailable.Trace = 1
-			apireturn.ApiJSONReturn(isAvailable, apierrorkeys.APIReqError, &w)
+			apierrors.HandleError(r, errors.Wrap(err, "failed to generate authentication token"), apierrorkeys.APIReqError, &apierrors.ReturnError{Msg: apierrorkeys.APIReqError, W: &w})
 			return
 		}
 		// get expiration time
@@ -421,9 +409,7 @@ func Handler_RequestPasswordReset(w http.ResponseWriter, r *http.Request, ctx co
 		// log email verif record to db
 		_, err = database.DB.Exec("INSERT INTO main.email_verification ( email_address, email_verif_token, email_verif_expires) VALUES ( ?,?,? );", emailSubmission.EmailAddress, token, expTimeUnix)
 		if err != nil {
-			isAvailable.Trace = 3
-			isAvailable.ErrorMsg = err.Error()
-			apireturn.ApiJSONReturn(isAvailable, apierrorkeys.APIReqError, &w)
+			apierrors.HandleError(r, errors.Wrap(err, "failed to insert email verification record"), apierrorkeys.DBQueryError, &apierrors.ReturnError{Msg: apierrorkeys.DBQueryError, W: &w})
 			return
 		}
 		// craft verification email
@@ -432,15 +418,13 @@ func Handler_RequestPasswordReset(w http.ResponseWriter, r *http.Request, ctx co
 		<span> Please follow <a href="https://` + global.EnvVars.Apiserver + `/set-pw?token=` + token + `&verifyEmail=true&newUser=false"> >this link< </a> to reset your password!</span>`
 		emailBody, err := mail.CraftEmail(html)
 		if err != nil {
-			isAvailable.Trace = 4
-			apireturn.ApiJSONReturn(isAvailable, apierrorkeys.APIReqError, &w)
+			apierrors.HandleError(r, errors.Wrap(err, "failed to craft password reset email"), apierrorkeys.APIReqError, &apierrors.ReturnError{Msg: apierrorkeys.APIReqError, W: &w})
 			return
 		}
 		err = mail.SendMailSingle(emailSubmission.EmailAddress, emailBody, "KIBANX Support", global.EnvVars.SMTPSupportUserName, "KIBANX email verification")
 		// send verification email
 		if err != nil {
-			isAvailable.Trace = 5
-			apireturn.ApiJSONReturn(isAvailable, apierrorkeys.APIReqError, &w)
+			apierrors.HandleError(r, errors.Wrap(err, "failed to send password reset email"), apierrorkeys.APIReqError, &apierrors.ReturnError{Msg: apierrorkeys.APIReqError, W: &w})
 			return
 		}
 

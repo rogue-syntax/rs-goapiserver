@@ -1,6 +1,8 @@
 package user
 
 import (
+	"database/sql"
+
 	"github.com/pkg/errors"
 	"github.com/rogue-syntax/rs-goapiserver/database"
 )
@@ -38,25 +40,85 @@ type UserExternal struct {
 	Role_name          string
 }
 
-func FindUserInternalByEmail(email_value string) (*UserInternal, error) {
-	var err error
+func ScanUserInternal(rows *sql.Rows) (*UserInternal, error) {
 	var usr UserInternal
-	err = database.DB.Get(&usr, "SELECT * FROM UserInternal WHERE email_value = ?", email_value)
-	return &usr, errors.WithStack(err)
+	if rows.Next() {
+		err := rows.Scan(&usr.User_id,
+			&usr.User_first_name,
+			&usr.User_last_name,
+			&usr.User_date_of_birth,
+			&usr.Email_id,
+			&usr.Email_value,
+			&usr.Email_verified,
+			&usr.User_pw,
+			&usr.Kyc_aml_status,
+			&usr.Kyc_aml_date,
+			&usr.Kyc_aml_id,
+			&usr.User_phone,
+			&usr.User_role_id,
+			&usr.Role_name)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return &usr, nil
+	} else {
+		return nil, nil
+	}
+}
+
+func ScanUserExternal(rows *sql.Rows) (*UserExternal, error) {
+	var usr UserExternal
+	if rows.Next() {
+		err := rows.Scan(&usr.User_id,
+			&usr.User_first_name,
+			&usr.User_last_name,
+			&usr.User_date_of_birth,
+			&usr.Email_id,
+			&usr.Email_value,
+			&usr.Email_verified,
+			&usr.Kyc_aml_status,
+			&usr.Kyc_aml_date,
+			&usr.Kyc_aml_id,
+			&usr.User_phone,
+			&usr.User_role_id,
+			&usr.Role_name)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return &usr, nil
+	} else {
+		return nil, nil
+	}
+}
+
+func FindUserInternalByEmail(email_value string) (*UserInternal, error) {
+	rows, err := database.DB.Query("SELECT * FROM UserInternal WHERE email_value = ?", email_value)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer rows.Close()
+	usr, err := ScanUserInternal(rows)
+	return usr, errors.WithStack(err)
 }
 
 func FindUserInternalByUser_id(user_id int) (*UserInternal, error) {
-	var err error
-	var usr UserInternal
-	err = database.DB.Get(&usr, "SELECT * FROM UserInternal WHERE user_id = ?", user_id)
-	return &usr, err
+	rows, err := database.DB.Query("SELECT * FROM UserInternal WHERE user_id = ?", user_id)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer rows.Close()
+	usr, err := ScanUserInternal(rows)
+	return usr, errors.WithStack(err)
 }
 
 func FindUserExternalByUser_id(user_id int) (*UserExternal, error) {
-	var err error
-	var usr UserExternal
-	err = database.DB.Get(&usr, "SELECT * FROM UserExternal WHERE user_id = ?", user_id)
-	return &usr, err
+	rows, err := database.DB.Query("SELECT * FROM UserExternal WHERE user_id = ?", user_id)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer rows.Close()
+	usr, err := ScanUserExternal(rows)
+	return usr, errors.WithStack(err)
 }
 
 func FindApiKeyByUser_id(user_id int) (string, error) {
