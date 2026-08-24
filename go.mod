@@ -48,6 +48,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/mailgun/mailgun-go/v4 v4.12.0
 	github.com/minio/minio-go/v7 v7.0.66
+	github.com/nbutton23/zxcvbn-go v0.0.0-20210217022336-fa2cb2858354
 	github.com/pkg/errors v0.9.1
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
